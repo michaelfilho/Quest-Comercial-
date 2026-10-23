@@ -107,3 +107,13 @@ export function verifyWebhookSignature(rawPayload: string, signatureHeader: stri
   }
 }
 
+/**
+ * 🔒 SEGURANÇA [VULN-4]: Compara segredo compartilhado de webhook em tempo constante (previne Timing Attack - CWE-208)
+ */
+export function verifySharedSecretTimingSafe(providedSecret: string | undefined): boolean {
+  if (!providedSecret) return false;
+  const providedHash = crypto.createHash('sha256').update(providedSecret).digest();
+  const expectedHash = crypto.createHash('sha256').update(env.WEBHOOK_SHARED_SECRET).digest();
+  return crypto.timingSafeEqual(providedHash, expectedHash);
+}
+

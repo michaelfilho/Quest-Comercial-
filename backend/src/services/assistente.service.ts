@@ -13,6 +13,9 @@ function toNum(v: any): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// 🔒 SEGURANÇA [VULN-7 / Lei 8]: Lock atômico em memória por usuário para impedir race conditions (TOCTOU) na cota diária de tokens da IA
+const activeAiRequestsByUser = new Set<string>();
+
 /**
  * Ferramentas controladas de consulta ao sistema (A IA nunca acessa diretamente o PostgreSQL;
  * todas as ferramentas validam o perfil RBAC do usuário autenticado).
@@ -82,7 +85,8 @@ export const assistenteService = {
          (SELECT COUNT(*)::int FROM assistente_mensagens am WHERE am.conversa_id = c.id) AS total_mensagens
        FROM assistente_conversas c
        WHERE c.usuario_id = $1 AND c.arquivada = false
-       ORDER BY c.updated_at DESC`,
+       ORDER BY c.updated_at DESC
+       LIMIT 100`,
       [user.id]
     );
     return rows.map((r) => ({
@@ -177,8 +181,19 @@ export const assistenteService = {
     mensagemUsuario: string,
     onChunk?: (chunkText: string) => void
   ) {
-    const conversa = await this.getConversaById(user, conversaId);
-    await this.checkUserDailyTokenLimit(user.id);
+    // 🔒 SEGURANÇA [VULN-7 / Lei 8]: Impede requisições concorrentes simultâneas do mesmo usuário para burlar limite de tokens
+    if (activeAiRequestsByUser.has(user.id)) {
+      throw new AppError(
+        'Já existe uma consulta ao Assistente IA em processamento para sua conta. Aguarde a conclusão.',
+        429,
+        'CONCURRENT_AI_REQUEST'
+      );
+    }
+
+    activeAiRequestsByUser.add(user.id);
+    try {
+      const conversa = await this.getConversaById(user, conversaId);
+      await this.checkUserDailyTokenLimit(user.id);
 
     // 1. Persiste mensagem do usuário
     const userMsgId = crypto.randomUUID();
@@ -369,19 +384,22 @@ DADOS AUTORIZADOS DO CRM PARA ESTE USUÁRIO:
       detalhes: `Tokens: ${totalTokensDelta}`,
     });
 
-    return {
-      conversa_id: conversaId,
-      mensagem_usuario_id: userMsgId,
-      mensagem_assistente: {
-        id: assistantMsgId,
+      return {
         conversa_id: conversaId,
-        role: 'assistant',
-        conteudo: respostaFinal,
-        prompt_tokens: promptTokens,
-        completion_tokens: completionTokens,
-        ferramentas_usadas: ferramentasUsadas,
-        created_at: new Date().toISOString(),
-      },
-    };
+        mensagem_usuario_id: userMsgId,
+        mensagem_assistente: {
+          id: assistantMsgId,
+          conversa_id: conversaId,
+          role: 'assistant',
+          conteudo: respostaFinal,
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          ferramentas_usadas: ferramentasUsadas,
+          created_at: new Date().toISOString(),
+        },
+      };
+    } finally {
+      activeAiRequestsByUser.delete(user.id);
+    }
   },
 };

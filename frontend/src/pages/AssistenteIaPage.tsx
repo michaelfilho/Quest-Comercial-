@@ -10,7 +10,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { api } from '../services/api';
+import { api, getApiBaseUrl } from '../services/api';
 import { formatDateTimeBR } from '../lib/utils';
 
 const QUICK_PROMPTS = [
@@ -88,7 +88,7 @@ export const AssistenteIaPage: React.FC = () => {
       }
 
       // Usa endpoint com suporte a streaming SSE
-      const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
+      const API_BASE = getApiBaseUrl();
       const response = await fetch(
         `${API_BASE}/assistente/conversas/${current.id}/mensagens`,
         {
@@ -139,10 +139,8 @@ export const AssistenteIaPage: React.FC = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[680px]">
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[calc(100vh-8.5rem)]">
       {/* Coluna Lateral: Histórico Privado de Conversas do Usuário */}
-      <div className="lg:col-span-4 xl:col-span-3 bg-white rounded-2xl border border-zinc-200 p-4 shadow-card flex flex-col justify-between">
       <div className="lg:col-span-4 xl:col-span-3 bg-white rounded-2xl border border-zinc-200 p-4 shadow-card flex flex-col justify-between min-w-0">
         <div>
           <button
@@ -150,12 +148,10 @@ export const AssistenteIaPage: React.FC = () => {
             onClick={handleNewConversa}
             className="w-full py-2.5 px-4 rounded-xl bg-[#FF5A00] hover:bg-[#E04F00] text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
           >
-            <Plus className="w-4 h-4" />
             <Plus className="w-4 h-4 shrink-0" />
             <span>Nova Conversa Comercial</span>
           </button>
 
-          <div className="mt-4 space-y-1.5 max-h-[480px] overflow-y-auto">
           <div className="mt-4 space-y-1.5 max-h-[55vh] overflow-y-auto">
             {conversas.length === 0 ? (
               <p className="text-xs text-zinc-500 p-3 text-center">
@@ -166,24 +162,18 @@ export const AssistenteIaPage: React.FC = () => {
                 <div
                   key={c.id}
                   onClick={() => handleSelectConversa(c.id)}
-                  className={`p-3 rounded-xl text-xs cursor-pointer transition-all flex items-center justify-between gap-2 ${
                   className={`p-3 rounded-xl text-xs cursor-pointer transition-all flex items-start justify-between gap-2 ${
                     activeConversa?.id === c.id
                       ? 'bg-[#111111] text-white'
                       : 'bg-[#F5F5F5] text-[#111111] hover:bg-zinc-200'
                   }`}
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 font-bold truncate">
-                      <MessageSquare className="w-3.5 h-3.5 text-[#FF5A00] shrink-0" />
-                      <span className="truncate">{c.titulo}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-1.5 font-bold">
                       <MessageSquare className="w-3.5 h-3.5 text-[#FF5A00] shrink-0 mt-0.5" />
                       <span className="break-words leading-snug">{c.titulo}</span>
                     </div>
                     <p
-                      className={`text-[10px] mt-0.5 ${
                       className={`text-[10px] mt-1 ${
                         activeConversa?.id === c.id ? 'text-zinc-400' : 'text-zinc-500'
                       }`}
@@ -217,20 +207,13 @@ export const AssistenteIaPage: React.FC = () => {
       </div>
 
       {/* Área Principal do Chat: Assistente Comercial Quest */}
-      <div className="lg:col-span-8 xl:col-span-9 bg-white rounded-2xl border border-zinc-200 shadow-card flex flex-col justify-between overflow-hidden">
       <div className="lg:col-span-8 xl:col-span-9 bg-white rounded-2xl border border-zinc-200 shadow-card flex flex-col justify-between overflow-hidden min-w-0">
         {/* Header do Assistente */}
-        <div className="p-5 border-b border-zinc-200 flex items-center justify-between bg-[#111111] text-white">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FF5A00] flex items-center justify-center">
         <div className="p-4 sm:p-5 border-b border-zinc-200 flex flex-wrap items-center justify-between gap-3 bg-[#111111] text-white">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#FF5A00] flex items-center justify-center shrink-0">
               <Bot className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <h2 className="text-base font-extrabold">Assistente Comercial Quest</h2>
-              <p className="text-xs text-zinc-400">
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-extrabold break-words">
                 Assistente Comercial Quest
@@ -242,8 +225,6 @@ export const AssistenteIaPage: React.FC = () => {
           </div>
 
           {activeConversa && (
-            <div className="text-right text-xs hidden sm:block">
-              <span className="px-2.5 py-1 rounded-full bg-white/10 text-zinc-200 font-semibold">
             <div className="text-xs">
               <span className="inline-block px-2.5 py-1 rounded-full bg-white/10 text-zinc-200 font-semibold">
                 Tokens: {activeConversa.total_tokens || 0} • Custo est.: US${' '}
@@ -360,4 +341,3 @@ export const AssistenteIaPage: React.FC = () => {
     </div>
   );
 };
-

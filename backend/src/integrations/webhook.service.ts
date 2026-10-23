@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import { db } from '../config/database.js';
-import { env } from '../config/env.js';
-import { verifyWebhookSignature } from '../config/security.js';
+import { verifySharedSecretTimingSafe, verifyWebhookSignature } from '../config/security.js';
 import { AppError } from '../middlewares/error.middleware.js';
 
 export const webhookService = {
@@ -16,11 +15,9 @@ export const webhookService = {
       data: Record<string, any>;
     };
   }) {
-    // 1. Autenticação do Webhook (HMAC Signature ou Shared Secret)
+    // 🔒 SEGURANÇA [VULN-4]: Autenticação do Webhook em tempo constante (HMAC-SHA256 ou Shared Secret via timingSafeEqual)
     const isHmacValid = verifyWebhookSignature(params.rawBody, params.signature);
-    const isSecretValid =
-      params.secretHeader !== undefined &&
-      params.secretHeader === env.WEBHOOK_SHARED_SECRET;
+    const isSecretValid = verifySharedSecretTimingSafe(params.secretHeader);
 
     if (!isHmacValid && !isSecretValid) {
       throw new AppError(

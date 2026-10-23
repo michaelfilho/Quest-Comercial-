@@ -49,7 +49,8 @@ export const crmService = {
        FROM clientes c
        INNER JOIN users u ON u.id = c.responsavel_id
        ${whereClause}
-       ORDER BY c.created_at DESC`,
+       ORDER BY c.created_at DESC
+       LIMIT 500`,
       params
     );
 
@@ -247,7 +248,8 @@ export const crmService = {
        INNER JOIN users u ON u.id = n.owner_id
        INNER JOIN stages s ON s.id = n.etapa_id
        ${whereClause}
-       ORDER BY n.updated_at DESC`,
+       ORDER BY n.updated_at DESC
+       LIMIT 500`,
       params
     );
 
@@ -486,6 +488,24 @@ export const crmService = {
 
     if (user.role === 'VENDEDOR' && existing.owner_id !== user.id) {
       throw new AppError('Acesso negado a esta negociação.', 403, 'FORBIDDEN');
+    }
+
+    // 🔒 SEGURANÇA [VULN-3 / Lei 5 & Lei 6]: Valida propriedade do novo cliente_id antes de reatribuir — previne IDOR/BOLA (CWE-639)
+    if (data.cliente_id && data.cliente_id !== existing.cliente_id) {
+      const targetCliente = await db.queryOne<{ id: string; responsavel_id: string }>(
+        `SELECT id, responsavel_id FROM clientes WHERE id = $1`,
+        [data.cliente_id]
+      );
+      if (!targetCliente) {
+        throw new AppError('Cliente selecionado não encontrado.', 404, 'CLIENTE_NOT_FOUND');
+      }
+      if (user.role === 'VENDEDOR' && targetCliente.responsavel_id !== user.id) {
+        throw new AppError(
+          'Acesso negado. Você não pode vincular uma negociação a um cliente de outro vendedor.',
+          403,
+          'FORBIDDEN'
+        );
+      }
     }
 
     const newEtapaId = data.etapa_id || existing.etapa_id;

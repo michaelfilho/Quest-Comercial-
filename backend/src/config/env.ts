@@ -1,14 +1,15 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
-dotenv.config({ path: path.resolve(process.cwd(), '../.env'), override: true });
+dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: false });
+dotenv.config({ path: path.resolve(process.cwd(), '../.env'), override: false });
 
 export const env = {
-  NODE_ENV: process.env.NODE_ENV || 'development',
+  NODE_ENV: process.env.VITEST ? 'test' : process.env.NODE_ENV || 'development',
   PORT: parseInt(process.env.PORT || '3001', 10),
   API_PREFIX: process.env.API_PREFIX || '/api/v1',
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
+  BASE_PATH: process.env.BASE_PATH || '/comercial',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'https://questos.com.br/comercial',
   DATABASE_URL:
     process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')
       ? process.env.DATABASE_URL
@@ -33,3 +34,25 @@ export const env = {
   SMTP_PASS: process.env.SMTP_PASS || '',
   SMTP_FROM: process.env.SMTP_FROM || 'Playbook Quest <no-reply@questcomunicacao.com.br>',
 };
+
+// 🔒 SEGURANÇA [VULN-4 / Lei 11 & Lei 15]: Fail Secure em produção se segredos críticos usarem fallback ou forem curtos
+if (env.NODE_ENV === 'production') {
+  if (
+    !process.env.SESSION_SECRET ||
+    process.env.SESSION_SECRET.length < 32 ||
+    process.env.SESSION_SECRET.includes('default-dev-secret')
+  ) {
+    throw new Error(
+      'CRITICAL SECURITY ERROR: SESSION_SECRET ausente ou inseguro em ambiente de produção.'
+    );
+  }
+  if (
+    !process.env.WEBHOOK_SHARED_SECRET ||
+    process.env.WEBHOOK_SHARED_SECRET.length < 24 ||
+    process.env.WEBHOOK_SHARED_SECRET === 'quest-webhook-shared-secret-2026'
+  ) {
+    throw new Error(
+      'CRITICAL SECURITY ERROR: WEBHOOK_SHARED_SECRET ausente ou inseguro em ambiente de produção.'
+    );
+  }
+}

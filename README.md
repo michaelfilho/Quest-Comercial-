@@ -104,14 +104,31 @@ npm run build
 
 ---
 
-## 6. Deploy em Produção (Coolify / VPS Hostinger)
+## 6. Deploy em Produção via Docker na VPS (`https://questos.com.br/comercial`)
 
-1. Copie `.env.example` para `.env` e preencha `POSTGRES_PASSWORD`, `SESSION_SECRET`, `OPENAI_API_KEY` e `WEBHOOK_SHARED_SECRET`.
-2. Execute:
+O sistema está integralmente preparado para rodar sob o subpath **`https://questos.com.br/comercial`**:
+
+1. Na VPS, copie `.env.example` para `.env` e defina os segredos de produção:
+   ```bash
+   cp .env.example .env
+   ```
+   Ajuste obrigatoriamente no `.env`:
+   - `POSTGRES_PASSWORD`: senha forte do banco PostgreSQL 16
+   - `SESSION_SECRET`: chave aleatória com pelo menos 64 caracteres hexadecimais (`openssl rand -hex 32`)
+   - `WEBHOOK_SHARED_SECRET`: segredo HMAC exclusivo para integrações n8n / Radar Quest
+   - `FRONTEND_URL=https://questos.com.br/comercial`
+   - `VITE_BASE_PATH=/comercial/`
+   - `VITE_API_URL=/comercial/api/v1`
+
+2. Suba os containers (`postgres`, `backend` e `frontend`):
    ```bash
    docker compose up -d --build
    ```
-3. Verifique os health checks:
-   - Backend API: `http://seu-dominio:3001/api/v1/health`
-   - Aplicação Web: `http://seu-dominio:8080/healthz`
+
+3. Configure o Reverse Proxy da VPS (`questos.com.br`) usando o arquivo de referência [`deploy/nginx-vps-questos.conf`](deploy/nginx-vps-questos.conf) (ou apontando o Path `/comercial` no Coolify/Traefik para a porta `8080` do container `quest-playbook-frontend`).
+
+4. Verifique os health checks:
+   - Aplicação Web & Proxy: `https://questos.com.br/comercial/healthz`
+   - API Backend via Subpath: `https://questos.com.br/comercial/api/v1/health`
+
 

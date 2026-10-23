@@ -81,30 +81,21 @@ export const AppLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#F5F5F5] text-[#111111]">
     <div className="min-h-screen w-full flex bg-[#F5F5F5] text-[#111111]">
       {/* Overlay Mobile */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
           className="fixed inset-0 z-40 bg-black/60 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar Lateral Fixa no Desktop e Recolhível no Mobile */}
       {/* Sidebar: Fixa no fluxo Flexbox no Desktop (nunca sobrepõe o conteúdo) e Gaveta no Mobile */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-68 bg-[#111111] text-white flex flex-col justify-between transition-transform duration-200 lg:translate-x-0 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
         className={`fixed inset-y-0 left-0 z-50 bg-[#111111] text-white flex flex-col justify-between transition-all duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 shrink-0 ${
           mobileOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0'
         } ${sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'}`}
       >
-        <div>
-          <div className="h-18 px-6 flex items-center justify-between border-b border-white/10">
-            <QuestLogo light />
         <div className="flex flex-col flex-1 min-h-0">
           <div className="h-16 px-4 flex items-center justify-between border-b border-white/10 shrink-0">
             <QuestLogo light compact={sidebarCollapsed} />
@@ -129,7 +120,6 @@ export const AppLayout: React.FC = () => {
             </button>
           </div>
 
-          <nav className="p-3 space-y-1">
           <nav className="p-3 space-y-1 overflow-y-auto flex-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -141,19 +131,16 @@ export const AppLayout: React.FC = () => {
                   onClick={() => setMobileOpen(false)}
                   title={item.label}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
                     `flex items-center ${
-                      sidebarCollapsed ? ' lg:justify-center lg:px-2' : 'gap-3 px-3.5'
+                      sidebarCollapsed ? 'lg:justify-center lg:px-2' : 'gap-3 px-3.5'
                     } py-2.5 rounded-xl text-sm font-medium transition-all ${
                       isActive
                         ? 'bg-[#FF5A00] text-white font-semibold shadow-sm'
-                        : 'text-zinc-300 hover:bg-white/8 hover:text-white'
                         : 'text-zinc-300 hover:bg-white/10 hover:text-white'
                     }`
                   }
                 >
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.label}</span>
                   <span className={sidebarCollapsed ? 'lg:hidden' : 'block'}>
                     {item.label}
                   </span>
@@ -164,9 +151,6 @@ export const AppLayout: React.FC = () => {
         </div>
 
         {/* Rodapé da Sidebar: Avatar, Nome, Cargo, Alterar senha, Sair */}
-        <div className="p-4 border-t border-white/10 bg-black/30">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-[#FF5A00] text-white font-bold text-sm flex items-center justify-center shrink-0">
         <div className="p-3 border-t border-white/10 bg-black/30 shrink-0">
           <div
             className={`flex items-center ${
@@ -179,9 +163,6 @@ export const AppLayout: React.FC = () => {
             >
               {getInitials(user?.name || 'Quest')}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
-              <p className="text-xs text-zinc-400 truncate">{user?.cargo}</p>
             <div className={`min-w-0 flex-1 ${sidebarCollapsed ? 'lg:hidden' : 'block'}`}>
               <p className="text-xs font-semibold text-white break-words leading-snug">
                 {user?.name}
@@ -192,7 +173,6 @@ export const AppLayout: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
           <div
             className={`grid ${
               sidebarCollapsed ? 'lg:grid-cols-1 gap-1.5' : 'grid-cols-2 gap-2'
@@ -201,12 +181,9 @@ export const AppLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => setPasswordModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-300 bg-white/5 hover:bg-white/12 hover:text-white transition-colors"
               title="Alterar senha"
               className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-300 bg-white/5 hover:bg-white/15 hover:text-white transition-colors"
             >
-              <KeyRound className="w-3.5 h-3.5" />
-              <span>Alterar senha</span>
               <KeyRound className="w-3.5 h-3.5 shrink-0" />
               <span className={sidebarCollapsed ? 'lg:hidden' : 'inline'}>Senha</span>
             </button>
@@ -216,8 +193,6 @@ export const AppLayout: React.FC = () => {
               title="Sair"
               className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 hover:text-red-200 transition-colors"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Sair</span>
               <LogOut className="w-3.5 h-3.5 shrink-0" />
               <span className={sidebarCollapsed ? 'lg:hidden' : 'inline'}>Sair</span>
             </button>
@@ -225,10 +200,6 @@ export const AppLayout: React.FC = () => {
         </div>
       </aside>
 
-      {/* Conteúdo Principal + Topbar */}
-      <div className="flex-1 flex flex-col lg:pl-68 min-w-0">
-        <header className="sticky top-0 z-20 h-18 bg-white border-b border-zinc-200 px-4 sm:px-8 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
       {/* Área Principal Fluida: adapta-se automaticamente a 100% da largura restante do monitor */}
       <div className="flex-1 flex flex-col min-w-0 w-full">
         <header className="sticky top-0 z-30 min-h-16 py-2.5 bg-white border-b border-zinc-200 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-3">
@@ -236,29 +207,21 @@ export const AppLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-[#111111] hover:bg-[#F5F5F5]"
               className="lg:hidden p-2 rounded-xl text-[#111111] hover:bg-[#F5F5F5] shrink-0"
               aria-label="Abrir menu"
             >
               <Menu className="w-5 h-5" />
             </button>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-[#111111] truncate">
               <h1 className="text-base sm:text-lg font-bold text-[#111111] leading-snug break-words">
                 {currentMeta.title}
               </h1>
-              <p className="text-xs text-[#333333] hidden sm:block truncate">
               <p className="text-xs text-[#333333] leading-snug break-words">
                 {currentMeta.context}
               </p>
             </div>
           </div>
 
-          {/* Identificação do Usuário na Topbar */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="text-right hidden md:block">
-              <div className="flex items-center justify-end gap-1.5">
-                <span className="text-sm font-semibold text-[#111111]">{user?.name}</span>
           {/* Identificação do Usuário na Topbar (Sempre visível e adaptável) */}
           <div className="flex items-center gap-2.5 shrink-0">
             <div className="text-right">
@@ -277,13 +240,11 @@ export const AppLayout: React.FC = () => {
                   {user?.role}
                 </span>
               </div>
-              <p className="text-xs text-[#333333]">{user?.cargo}</p>
               <p className="text-[11px] text-[#333333]">{user?.cargo}</p>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-8 max-w-[1600px] w-full mx-auto">
         <main className="flex-1 p-4 sm:p-6 w-full min-w-0 overflow-x-hidden">
           <Outlet />
         </main>

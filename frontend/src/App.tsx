@@ -88,11 +88,32 @@ export const AppRoutes: React.FC = () => {
   );
 };
 
+export function resolveRouterBasename(): string {
+  if (typeof window !== 'undefined') {
+    if (
+      window.location.pathname === '/comercial' ||
+      window.location.pathname.startsWith('/comercial/')
+    ) {
+      return '/comercial';
+    }
+  }
+  const envBase = import.meta.env.VITE_BASE_PATH?.replace(/\/+$/, '');
+  if (
+    envBase &&
+    envBase !== '/' &&
+    typeof window !== 'undefined' &&
+    window.location.pathname.startsWith(envBase)
+  ) {
+    return envBase;
+  }
+  return '/';
+}
+
 export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={resolveRouterBasename()}>
           <AppRoutes />
         </BrowserRouter>
       </AuthProvider>

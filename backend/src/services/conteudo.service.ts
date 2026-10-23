@@ -185,6 +185,24 @@ export const conteudoService = {
       throw new AppError('Ritual comercial não encontrado.', 404, 'RITUAL_NOT_FOUND');
     }
 
+    // 🔒 SEGURANÇA [VULN-2 / Lei 5 & Lei 6]: Valida propriedade da negociação antes de vincular ou alterar forecast_score — previne IDOR/BOLA (CWE-639)
+    if (data.negociacao_id) {
+      const targetDeal = await db.queryOne<{ id: string; owner_id: string }>(
+        `SELECT id, owner_id FROM negociacoes WHERE id = $1`,
+        [data.negociacao_id]
+      );
+      if (!targetDeal) {
+        throw new AppError('Negociação vinculada não encontrada.', 404, 'NEGOCIACAO_NOT_FOUND');
+      }
+      if (user.role === 'VENDEDOR' && targetDeal.owner_id !== user.id) {
+        throw new AppError(
+          'Acesso negado. Você não pode alterar o scorecard ou vincular rituais a negociações de outro vendedor.',
+          403,
+          'FORBIDDEN'
+        );
+      }
+    }
+
     const execId = crypto.randomUUID();
     const dataExecucao = data.data_execucao
       ? new Date(data.data_execucao).toISOString()

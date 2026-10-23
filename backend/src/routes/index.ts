@@ -26,11 +26,11 @@ apiRouter.get('/health', async (_req, res) => {
       engine: getDatabaseEngineMode(),
       timestamp: new Date().toISOString(),
     });
-  } catch (err) {
+  } catch {
+    // 🔒 SEGURANÇA [VULN-6 / Lei 9 & Lei 14]: Não expõe mensagem de erro interna do banco em endpoint público
     res.status(503).json({
       status: 'degraded',
       database: 'disconnected',
-      error: err instanceof Error ? err.message : 'Unknown error',
     });
   }
 });

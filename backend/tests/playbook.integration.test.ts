@@ -494,4 +494,88 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     expect(wh2.status).toBe(200);
     expect(wh2.body.idempotent_replay).toBe(true);
   });
+
+  // ============================================================================
+  // FASE 3: TESTES DE SEGURANÇA (Security TDD — Auditoria Zero-Trust v3)
+  // ============================================================================
+  it('VULN-1: deve impedir exposição de token de reset na resposta HTTP para contas já ativadas (Account Takeover Protection)', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'andre.maciel@questcomunicacao.com.br' });
+    expect(res.status).toBe(200);
+    expect(res.body.resetTokenForSetup).toBeNull();
+  });
+
+  it('VULN-2: deve rejeitar adulteração de forecast_score de negociação de outro vendedor via execução de ritual (IDOR/BOLA)', async () => {
+    const rituaisRes = await request(app).get('/api/v1/rituais').set('Cookie', tiagoCookie);
+    const monthlyRitualId = rituaisRes.body.por_frequencia.MENSAL[0].id;
+
+    // Tiago tenta alterar o forecast_score da negociação privada da Katia
+    const attackRes = await request(app)
+      .post(`/api/v1/rituais/${monthlyRitualId}/execucoes`)
+      .set('Cookie', tiagoCookie)
+      .send({
+        status: 'CONCLUIDO',
+        forecast_score: 1,
+        negociacao_id: negociacaoKatiaId,
+      });
+    expect(attackRes.status).toBe(403);
+    expect(attackRes.body.error).toBe('FORBIDDEN');
+  });
+
+  it('VULN-3: deve rejeitar vinculação de negociação própria a cliente pertencente a outro vendedor (IDOR/BOLA)', async () => {
+    const attackRes = await request(app)
+      .put(`/api/v1/negociacoes/${negociacaoTiagoId}`)
+      .set('Cookie', tiagoCookie)
+      .send({
+        cliente_id: clienteKatiaId,
+      });
+    expect(attackRes.status).toBe(403);
+    expect(attackRes.body.error).toBe('FORBIDDEN');
+  });
+
+  it('VULN-4: deve rejeitar webhook sem assinatura ou com segredo inválido (Autenticação Zero-Trust)', async () => {
+    const res = await request(app)
+      .post('/api/v1/integrations/webhooks/inbound')
+      .set('x-webhook-secret', 'segredo-invalido-forjado')
+      .send({
+        event: 'lead.created',
+        source: 'n8n',
+        data: { nome: 'Lead Invasor', empresa: 'Corp X' },
+      });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('INVALID_WEBHOOK_SIGNATURE');
+  });
+
+  it('VULN-5: deve rejeitar payload com campos não permitidos (.strict() Mass Assignment Protection) e textos acima do limite (.max())', async () => {
+    const massAssignRes = await request(app)
+      .post('/api/v1/clientes')
+      .set('Cookie', tiagoCookie)
+      .send({
+        nome: 'Cliente Teste',
+        empresa: 'Empresa Teste',
+        isAdmin: true,
+        role: 'GESTOR',
+      });
+    expect(massAssignRes.status).toBe(400);
+    expect(massAssignRes.body.error).toBe('VALIDATION_ERROR');
+
+    const oversizedRes = await request(app)
+      .post('/api/v1/clientes')
+      .set('Cookie', tiagoCookie)
+      .send({
+        nome: 'A'.repeat(500),
+        empresa: 'Empresa Teste',
+      });
+    expect(oversizedRes.status).toBe(400);
+    expect(oversizedRes.body.error).toBe('VALIDATION_ERROR');
+  });
+
+  it('VULN-6: deve aplicar headers de segurança estritos (CSP, X-Frame-Options: DENY, HSTS, X-Content-Type-Options)', async () => {
+    const res = await request(app).get('/api/v1/health');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(res.headers['x-powered-by']).toBeUndefined();
+  });
 });

@@ -1,4 +1,16 @@
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
+export function getApiBaseUrl(): string {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/+$/, '');
+  }
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/comercial' ||
+      window.location.pathname.startsWith('/comercial/'))
+  ) {
+    return '/comercial/api/v1';
+  }
+  return '/api/v1';
+}
 
 export class ApiClientError extends Error {
   public readonly status: number;
@@ -15,7 +27,8 @@ async function request<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const apiBase = getApiBaseUrl();
+  const url = `${apiBase}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
@@ -66,4 +79,3 @@ export const api = {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }),
 };
-

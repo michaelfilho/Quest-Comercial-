@@ -172,14 +172,20 @@ export const authService = {
       'Token de ativação/recuperação de senha gerado.'
     );
 
-    // Se SMTP não estiver configurado, retorna o token de uso único para permitir ativação segura imediata das contas iniciais
+    // 🔒 SEGURANÇA [VULN-1]: Jamais expor token de redefinição (PASSWORD_RESET) de conta já ativada na resposta HTTP,
+    // prevenindo Account Takeover (CWE-640). O token em resposta só é permitido no primeiro acesso (ACCOUNT_ACTIVATION) quando a conta ainda não possui senha e SMTP não está configurado.
     const smtpConfigured = Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
+    const allowSetupTokenInResponse =
+      purpose === 'ACCOUNT_ACTIVATION' &&
+      !user.password_hash &&
+      !smtpConfigured;
+
     return {
       message:
-        'Token seguro de definição/recuperação de senha gerado com validade de 60 minutos.',
+        'Se o e-mail informado pertencer a uma conta ativa da Quest, as instruções de definição/recuperação de senha foram geradas.',
       purpose,
       expiresAt: expiresAt.toISOString(),
-      resetTokenForSetup: !smtpConfigured ? rawToken : null,
+      resetTokenForSetup: allowSetupTokenInResponse ? rawToken : null,
     };
   },
 
