@@ -1,0 +1,400 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  GESTOR
+  VENDEDOR
+}
+
+enum NegociacaoStatus {
+  EM_ANDAMENTO
+  GANHO
+  PERDIDO
+}
+
+enum MetaTipo {
+  MENSAL
+  ANUAL
+  INDICADOR_COMERCIAL
+  CICLO
+}
+
+enum RitualFrequencia {
+  DIARIO
+  SEMANAL
+  MENSAL
+  TRIMESTRAL
+}
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  email         String   @unique
+  password_hash String?
+  role          UserRole @default(VENDEDOR)
+  cargo         String
+  active        Boolean  @default(true)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @updatedAt @db.Timestamptz(6)
+
+  sessions               Session[]
+  password_reset_tokens  PasswordResetToken[]
+  metas                  Meta[]
+  kpi_metas              KpiMeta[]
+  clientes               Cliente[]
+  negociacoes            Negociacao[]
+  negociacao_atividades  NegociacaoAtividade[]
+  negociacao_historico   NegociacaoHistorico[]
+  ritual_execucoes       RitualExecucao[]
+  assistente_conversas   AssistenteConversa[]
+  audit_logs             AuditLog[]
+
+  @@index([email])
+  @@index([role, active])
+  @@map("users")
+}
+
+model Session {
+  id          String    @id @default(uuid()) @db.Uuid
+  user_id     String    @db.Uuid
+  token_hash  String    @unique
+  ip_address  String?
+  user_agent  String?
+  expires_at  DateTime  @db.Timestamptz(6)
+  revoked_at  DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  user_id     String    @db.Uuid
+  token_hash  String    @unique
+  purpose     String    @default("PASSWORD_RESET")
+  expires_at  DateTime  @db.Timestamptz(6)
+  used_at     DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+  @@map("password_reset_tokens")
+}
+
+model Stage {
+  id                   String   @id @default(uuid()) @db.Uuid
+  nome                 String   @unique
+  slug                 String   @unique
+  ordem                Int      @unique
+  probabilidade_padrao Int      @default(20)
+  cor                  String   @default("#FF5A00")
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+
+  negociacoes        Negociacao[]
+  historico_anterior NegociacaoHistorico[] @relation("EtapaAnterior")
+  historico_nova     NegociacaoHistorico[] @relation("EtapaNova")
+
+  @@index([ordem])
+  @@map("stages")
+}
+
+model Meta {
+  id             String   @id @default(uuid()) @db.Uuid
+  vendedor_id    String?  @db.Uuid
+  tipo           MetaTipo @default(MENSAL)
+  periodo        String
+  ano            Int
+  mes            Int?
+  ciclo          String?
+  indicador_nome String?
+  valor_alvo     Decimal  @db.Decimal(15, 2)
+  observacoes    String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @updatedAt @db.Timestamptz(6)
+
+  vendedor User? @relation(fields: [vendedor_id], references: [id], onDelete: Cascade)
+
+  @@index([vendedor_id, periodo])
+  @@index([ano, mes])
+  @@index([tipo])
+  @@map("metas")
+}
+
+model KpiMeta {
+  id                                String   @id @default(uuid()) @db.Uuid
+  usuario_id                        String?  @db.Uuid
+  periodo                           String
+  ciclo                             String   @default("GERAL")
+  validacoes_radar_meta             Int?
+  validacoes_radar_realizado        Int      @default(0)
+  taxa_agendamento_meta             Decimal? @db.Decimal(5, 2)
+  taxa_agendamento_realizado        Decimal? @db.Decimal(5, 2)
+  taxa_qualificacao_meta            Decimal? @db.Decimal(5, 2)
+  taxa_qualificacao_realizado       Decimal? @db.Decimal(5, 2)
+  taxa_aceite_diagnostico_meta      Decimal? @db.Decimal(5, 2)
+  taxa_aceite_diagnostico_realizado Decimal? @db.Decimal(5, 2)
+  taxa_conversao_meta               Decimal? @db.Decimal(5, 2)
+  taxa_conversao_realizado          Decimal? @db.Decimal(5, 2)
+  ticket_medio_meta                 Decimal? @db.Decimal(15, 2)
+  ticket_medio_realizado            Decimal? @db.Decimal(15, 2)
+  ciclo_dias_meta                   Int?
+  ciclo_dias_realizado              Int?
+  ciclo_1_meta                      Decimal? @db.Decimal(15, 2)
+  ciclo_1_realizado                 Decimal? @db.Decimal(15, 2)
+  ciclo_2_meta                      Decimal? @db.Decimal(15, 2)
+  ciclo_2_realizado                 Decimal? @db.Decimal(15, 2)
+  previsao_receita                  Decimal? @db.Decimal(15, 2)
+  previsao_fechamentos              Int?
+  created_at                        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                        DateTime @updatedAt @db.Timestamptz(6)
+
+  usuario User? @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@index([usuario_id, periodo, ciclo])
+  @@map("kpi_metas")
+}
+
+model Cliente {
+  id               String    @id @default(uuid()) @db.Uuid
+  nome             String
+  empresa          String
+  segmento         String?
+  contato          String?
+  email            String?
+  telefone         String?
+  status           String    @default("ATIVO")
+  origem           String?   @default("INBOUND")
+  responsavel_id   String    @db.Uuid
+  observacoes      String?
+  first_contact_at DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @updatedAt @db.Timestamptz(6)
+
+  responsavel User         @relation(fields: [responsavel_id], references: [id], onDelete: Restrict)
+  negociacoes Negociacao[]
+
+  @@index([responsavel_id])
+  @@index([empresa])
+  @@index([status])
+  @@index([created_at])
+  @@map("clientes")
+}
+
+model Negociacao {
+  id                  String           @id @default(uuid()) @db.Uuid
+  nome                String
+  cliente_id          String           @db.Uuid
+  owner_id            String           @db.Uuid
+  etapa_id            String           @db.Uuid
+  valor               Decimal          @db.Decimal(15, 2)
+  probabilidade       Int              @default(20)
+  status              NegociacaoStatus @default(EM_ANDAMENTO)
+  motivo_perda        String?
+  expected_close_date DateTime?        @db.Timestamptz(6)
+  closed_date         DateTime?        @db.Timestamptz(6)
+  stage_changed_at    DateTime         @default(now()) @db.Timestamptz(6)
+  last_activity_at    DateTime         @default(now()) @db.Timestamptz(6)
+  forecast_score      Int?
+  produto             String?          @default("INBOUND_CONSULTORIA")
+  created_at          DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime         @updatedAt @db.Timestamptz(6)
+
+  cliente          Cliente               @relation(fields: [cliente_id], references: [id], onDelete: Restrict)
+  owner            User                  @relation(fields: [owner_id], references: [id], onDelete: Restrict)
+  etapa            Stage                 @relation(fields: [etapa_id], references: [id], onDelete: Restrict)
+  atividades       NegociacaoAtividade[]
+  historico        NegociacaoHistorico[]
+  ritual_execucoes RitualExecucao[]
+
+  @@index([owner_id, status])
+  @@index([etapa_id])
+  @@index([cliente_id])
+  @@index([closed_date])
+  @@index([expected_close_date])
+  @@index([stage_changed_at])
+  @@map("negociacoes")
+}
+
+model NegociacaoAtividade {
+  id               String    @id @default(uuid()) @db.Uuid
+  negociacao_id    String    @db.Uuid
+  usuario_id       String    @db.Uuid
+  tipo             String
+  titulo           String
+  descricao        String?
+  realizada_em     DateTime  @default(now()) @db.Timestamptz(6)
+  proxima_acao_em  DateTime? @db.Timestamptz(6)
+  concluida        Boolean   @default(true)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  negociacao Negociacao @relation(fields: [negociacao_id], references: [id], onDelete: Cascade)
+  usuario    User       @relation(fields: [usuario_id], references: [id], onDelete: Restrict)
+
+  @@index([negociacao_id, realizada_em])
+  @@index([usuario_id])
+  @@map("negociacao_atividades")
+}
+
+model NegociacaoHistorico {
+  id                      String   @id @default(uuid()) @db.Uuid
+  negociacao_id           String   @db.Uuid
+  usuario_id              String   @db.Uuid
+  etapa_anterior_id       String?  @db.Uuid
+  etapa_nova_id           String?  @db.Uuid
+  status_anterior         String?
+  status_novo             String?
+  valor_anterior          Decimal? @db.Decimal(15, 2)
+  valor_novo              Decimal? @db.Decimal(15, 2)
+  acao                    String
+  detalhes                String?
+  tempo_na_etapa_segundos Int?
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  negociacao     Negociacao @relation(fields: [negociacao_id], references: [id], onDelete: Cascade)
+  usuario        User       @relation(fields: [usuario_id], references: [id], onDelete: Restrict)
+  etapa_anterior Stage?     @relation("EtapaAnterior", fields: [etapa_anterior_id], references: [id], onDelete: SetNull)
+  etapa_nova     Stage?     @relation("EtapaNova", fields: [etapa_nova_id], references: [id], onDelete: SetNull)
+
+  @@index([negociacao_id, created_at])
+  @@map("negociacao_historico")
+}
+
+model Ritual {
+  id             String           @id @default(uuid()) @db.Uuid
+  codigo         String           @unique
+  nome           String
+  frequencia     RitualFrequencia
+  descricao      String
+  regras_alerta  String?
+  horario_padrao String?
+  ativo          Boolean          @default(true)
+  ordem          Int              @default(1)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+
+  execucoes RitualExecucao[]
+
+  @@index([frequencia, ordem])
+  @@map("rituais")
+}
+
+model RitualExecucao {
+  id                       String      @id @default(uuid()) @db.Uuid
+  ritual_id                String      @db.Uuid
+  responsavel_id           String      @db.Uuid
+  data_execucao            DateTime    @default(now()) @db.Timestamptz(6)
+  status                   String      @default("CONCLUIDO")
+  observacoes              String?
+  respostas_acompanhamento String?
+  pitch_score              Int?
+  forecast_score           Int?
+  negociacao_id            String?     @db.Uuid
+  created_at               DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime    @updatedAt @db.Timestamptz(6)
+
+  ritual      Ritual      @relation(fields: [ritual_id], references: [id], onDelete: Cascade)
+  responsavel User        @relation(fields: [responsavel_id], references: [id], onDelete: Restrict)
+  negociacao  Negociacao? @relation(fields: [negociacao_id], references: [id], onDelete: SetNull)
+
+  @@index([ritual_id, data_execucao])
+  @@index([responsavel_id])
+  @@map("ritual_execucoes")
+}
+
+model AssistenteConversa {
+  id                 String   @id @default(uuid()) @db.Uuid
+  usuario_id         String   @db.Uuid
+  titulo             String
+  total_tokens       Int      @default(0)
+  custo_estimado_usd Decimal  @default(0) @db.Decimal(10, 6)
+  arquivada          Boolean  @default(false)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @updatedAt @db.Timestamptz(6)
+
+  usuario   User                 @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  mensagens AssistenteMensagem[]
+
+  @@index([usuario_id, updated_at])
+  @@map("assistente_conversas")
+}
+
+model AssistenteMensagem {
+  id                 String   @id @default(uuid()) @db.Uuid
+  conversa_id        String   @db.Uuid
+  role               String
+  conteudo           String
+  prompt_tokens      Int      @default(0)
+  completion_tokens  Int      @default(0)
+  ferramentas_usadas String?
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  conversa AssistenteConversa @relation(fields: [conversa_id], references: [id], onDelete: Cascade)
+
+  @@index([conversa_id, created_at])
+  @@map("assistente_mensagens")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  usuario_id  String?  @db.Uuid
+  acao        String
+  entidade    String
+  entidade_id String?
+  detalhes    String?
+  ip_address  String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  usuario User? @relation(fields: [usuario_id], references: [id], onDelete: SetNull)
+
+  @@index([usuario_id, created_at])
+  @@index([entidade, acao])
+  @@map("audit_logs")
+}
+
+model PlaybookConteudo {
+  id                String   @id @default(uuid()) @db.Uuid
+  secao_numero      Int
+  secao_slug        String
+  secao_titulo      String
+  categoria         String
+  titulo            String
+  subtitulo         String?
+  conteudo          String
+  etapa_ordem       Int?
+  criterios_avanco  String?
+  responsaveis      String?
+  copiavel          Boolean  @default(false)
+  oficial_importado Boolean  @default(false)
+  ordem             Int      @default(1)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([secao_numero, ordem])
+  @@map("playbook_conteudos")
+}
+
+model WebhookLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  idempotency_key String   @unique
+  direcao         String   @default("INBOUND")
+  evento          String
+  origem          String
+  status          String
+  payload_resumo  String?
+  erro            String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([evento, created_at])
+  @@map("webhook_logs")
+}
+

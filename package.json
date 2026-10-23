@@ -1,0 +1,15 @@
+{
+  "name": "playbook-quest",
+  "version": "1.0.0",
+  "description": "Playbook de Vendas Quest — Sistema Comercial e Inteligência de Vendas (Quest Comunicação Total)",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend",
+    "test": "npm test --prefix backend && npm test --prefix frontend",
+    "db:seed": "npm run db:seed --prefix backend"
+  }
+}
+
