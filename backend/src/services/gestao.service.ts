@@ -61,6 +61,26 @@ function resolveDateRange(filters: {
 }
 
 export const gestaoService = {
+  async deleteVendedor(user: AuthenticatedUser, targetId: string, ipAddress?: string) {
+    if (user.role !== 'GESTOR') throw new AppError('Apenas gestores podem excluir usuários.', 403, 'FORBIDDEN');
+    if (targetId === user.id) throw new AppError('Você não pode excluir sua própria conta de gestor.', 400, 'SELF_DELETION');
+    await db.withTransaction(async (tx) => {
+      // Ordem estável de bloqueio protege exclusões simultâneas entre gestores.
+      const { rows } = await tx.query<{ id: string; role: string; active: boolean }>(
+        'SELECT id, role, active FROM users WHERE id IN ($1, $2) AND deleted_at IS NULL ORDER BY id FOR UPDATE',
+        [user.id, targetId]
+      );
+      const actor = rows.find((row) => row.id === user.id);
+      if (!actor || !actor.active || actor.role !== 'GESTOR') throw new AppError('Acesso negado.', 403, 'FORBIDDEN');
+      if (!rows.some((row) => row.id === targetId)) throw new AppError('Usuário não encontrado.', 404, 'USER_NOT_FOUND');
+      await tx.query('UPDATE users SET active = false, password_hash = NULL, deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [targetId]);
+      await tx.query('UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL', [targetId]);
+      await tx.query('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND used_at IS NULL', [targetId]);
+    });
+    await recordAuditLog({ usuarioId: user.id, acao: 'USUARIO_EXCLUIDO', entidade: 'users', entidadeId: targetId,
+      detalhes: 'Conta excluída da equipe; credenciais revogadas e histórico comercial preservado.', ipAddress });
+    return { deleted: true };
+  },
   async getOverviewDashboard(
     user: AuthenticatedUser,
     filters: {
@@ -980,6 +1000,7 @@ export const gestaoService = {
     const { rows: users } = await db.query<any>(
       `SELECT id, name, email, role, cargo, active, (password_hash IS NOT NULL) AS activated, created_at
        FROM users
+       WHERE deleted_at IS NULL
        ORDER BY CASE WHEN role = 'GESTOR' THEN 0 ELSE 1 END, name ASC`
     );
 
@@ -1092,7 +1113,7 @@ export const gestaoService = {
 
     const seller = await db.queryOne<any>(
       `SELECT id, name, email, role, cargo, active, (password_hash IS NOT NULL) AS activated, created_at
-       FROM users WHERE id = $1`,
+       FROM users WHERE id = $1 AND deleted_at IS NULL`,
       [sellerId]
     );
     if (!seller) {
@@ -1191,7 +1212,7 @@ export const gestaoService = {
       throw new AppError('Apenas gestores podem editar contas da equipe.', 403, 'FORBIDDEN');
     }
 
-    const existing = await db.queryOne(`SELECT * FROM users WHERE id = $1`, [targetId]);
+    const existing = await db.queryOne(`SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL`, [targetId]);
     if (!existing) {
       throw new AppError('Usuário não encontrado.', 404, 'USER_NOT_FOUND');
     }
@@ -1205,7 +1226,7 @@ export const gestaoService = {
     }
     const passwordHash = data.password !== undefined ? await hashPassword(data.password) : null;
     await db.withTransaction(async (tx) => {
-      await tx.query(
+      const updated = await tx.query(
       `UPDATE users
        SET name = COALESCE($1, name),
            email = COALESCE($2, email),
@@ -1213,9 +1234,10 @@ export const gestaoService = {
            role = COALESCE($4::"UserRole", role),
            password_hash = COALESCE($5, password_hash),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6`,
+       WHERE id = $6 AND deleted_at IS NULL`,
         [data.name ?? null, data.email ?? null, data.cargo ?? null, data.role ?? null, passwordHash, targetId]
       );
+      if (updated.rowCount === 0) throw new AppError('Usuário não encontrado.', 404, 'USER_NOT_FOUND');
       if (passwordHash) {
         await tx.query('UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL', [targetId]);
         await tx.query('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND used_at IS NULL', [targetId]);
@@ -1246,17 +1268,18 @@ export const gestaoService = {
     if (user.role !== 'GESTOR') {
       throw new AppError('Apenas gestores podem ativar ou desativar contas.', 403, 'FORBIDDEN');
     }
-    const existing = await db.queryOne('SELECT id FROM users WHERE id = $1', [targetId]);
+    const existing = await db.queryOne('SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL', [targetId]);
     if (!existing) throw new AppError('Usuário não encontrado.', 404, 'USER_NOT_FOUND');
     if (targetId === user.id && !active) {
       throw new AppError('Você não pode desativar sua própria conta de gestor.', 400, 'SELF_DEACTIVATION');
     }
 
     await db.withTransaction(async (tx) => {
-      await tx.query(
-        `UPDATE users SET active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      const updated = await tx.query(
+        `UPDATE users SET active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND deleted_at IS NULL`,
         [active, targetId]
       );
+      if (updated.rowCount === 0) throw new AppError('Usuário não encontrado.', 404, 'USER_NOT_FOUND');
       if (!active) {
         await tx.query(
           `UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL`,

@@ -61,6 +61,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
        FROM sessions s
        INNER JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = $1
+         AND u.deleted_at IS NULL
          AND s.revoked_at IS NULL
          AND s.expires_at > CURRENT_TIMESTAMP`,
       [tokenHash]

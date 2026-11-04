@@ -74,3 +74,6 @@ export const vendedorStatusSchema = z
     active: z.boolean(),
   })
   .strict();
+
+export const vendedorDeleteSchema = z.object({ confirm: z.literal(true) }).strict();
+export const vendedorIdSchema = z.string().uuid('Usuário inválido.');

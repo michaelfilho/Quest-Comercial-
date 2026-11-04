@@ -107,3 +107,35 @@ test('Gestor cadastra e redefine a senha diretamente, sem convite por link', asy
   await page.getByTitle('Definir senha', { exact: true }).click();
   await expect(editDialog.getByLabel('Nova senha (opcional)', { exact: true })).toHaveValue('');
 });
+
+test('Gestor exclui usuário com confirmação e mantém a própria conta protegida', async ({ page }) => {
+  let members = [
+    { id: 'katia', nome: 'Katia Gebran', email: 'katia@example.test', role: 'VENDEDOR', cargo: 'Comercial', active: false },
+    { id: gestor.id, nome: gestor.name, email: gestor.email, role: gestor.role, cargo: gestor.cargo, active: true },
+  ];
+  let deletions = 0;
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    let body: any = {};
+    if (path.endsWith('/auth/me')) body = { user: gestor };
+    if (path.endsWith('/equipe')) body = { integrantes: members };
+    if (path.endsWith('/equipe/katia') && route.request().method() === 'DELETE') {
+      expect(route.request().postDataJSON()).toEqual({ confirm: true });
+      deletions += 1; members = members.filter((member) => member.id !== 'katia'); body = { deleted: true };
+    }
+    await route.fulfill({ json: body });
+  });
+  await page.goto('/equipe');
+  await expect(page.getByRole('button', { name: `Excluir usuário ${gestor.name}`, exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Excluir usuário Katia Gebran', exact: true }).click();
+  const confirmation = page.getByRole('dialog', { name: 'Excluir usuário', exact: true });
+  await expect(confirmation).toContainText('histórico serão preservados');
+  await confirmation.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  expect(deletions).toBe(0);
+  await expect(page.getByRole('heading', { name: 'Katia Gebran', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Excluir usuário Katia Gebran', exact: true }).click();
+  await confirmation.getByRole('button', { name: 'Excluir usuário', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Katia Gebran', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('Usuário excluído da equipe');
+  expect(deletions).toBe(1);
+});

@@ -21,18 +21,18 @@ let dbInitialized = false;
 let initPromise: Promise<void> | null = null;
 let activeMode: 'postgres-pool' | 'pglite-postgres16' = 'pglite-postgres16';
 
-function resolveMigrationPath(): string {
+function resolveMigrationPath(name = '0001_init'): string {
   const candidates = [
-    path.resolve(process.cwd(), 'prisma/migrations/0001_init/migration.sql'),
-    path.resolve(process.cwd(), 'backend/prisma/migrations/0001_init/migration.sql'),
-    path.resolve(process.cwd(), '../backend/prisma/migrations/0001_init/migration.sql'),
+    path.resolve(process.cwd(), `prisma/migrations/${name}/migration.sql`),
+    path.resolve(process.cwd(), `backend/prisma/migrations/${name}/migration.sql`),
+    path.resolve(process.cwd(), `../backend/prisma/migrations/${name}/migration.sql`),
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
       return candidate;
     }
   }
-  throw new Error('Arquivo de migration PostgreSQL (0001_init/migration.sql) não encontrado.');
+  throw new Error(`Arquivo de migration PostgreSQL (${name}/migration.sql) não encontrado.`);
 }
 
 async function canConnectExternalPostgres(): Promise<boolean> {
@@ -65,7 +65,8 @@ export async function initDatabase(): Promise<void> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    const migrationSql = fs.readFileSync(resolveMigrationPath(), 'utf-8');
+    const migrationSql = ['0001_init', '0002_user_deletion']
+      .map((name) => fs.readFileSync(resolveMigrationPath(name), 'utf-8')).join('\n');
     const useExternal = await canConnectExternalPostgres();
 
     if (useExternal) {

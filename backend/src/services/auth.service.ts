@@ -29,7 +29,7 @@ export const authService = {
     }>(
       `SELECT id, name, email, password_hash, role, cargo, active
        FROM users
-       WHERE LOWER(email) = LOWER($1)`,
+       WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL`,
       [params.email]
     );
 
@@ -127,7 +127,7 @@ export const authService = {
     }>(
       `SELECT id, name, email, password_hash, active
        FROM users
-       WHERE LOWER(email) = LOWER($1)`,
+       WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL`,
       [email]
     );
 
@@ -197,7 +197,7 @@ export const authService = {
       `SELECT prt.id, prt.user_id, prt.purpose, prt.expires_at, prt.used_at, u.email, u.active
        FROM password_reset_tokens prt
        INNER JOIN users u ON u.id = prt.user_id
-       WHERE prt.token_hash = $1`,
+       WHERE prt.token_hash = $1 AND u.deleted_at IS NULL`,
       [tokenHash]
     );
 

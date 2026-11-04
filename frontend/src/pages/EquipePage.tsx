@@ -10,6 +10,7 @@ import {
   X,
   KeyRound,
   CheckCircle2,
+  Trash2,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { api } from '../services/api';
@@ -25,6 +26,8 @@ export const EquipePage: React.FC = () => {
   const [createModal, setCreateModal] = useState(false);
   const [editMember, setEditMember] = useState<any>(null);
   const [removeMember, setRemoveMember] = useState<any>(null);
+  const [deleteMember, setDeleteMember] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
@@ -125,6 +128,19 @@ export const EquipePage: React.FC = () => {
     } catch (err: any) { setRemoveMember(null); setError(err.message || 'Não foi possível remover o acesso.'); }
   };
 
+  const handleDelete = async () => {
+    if (!deleteMember || deleting) return;
+    setDeleting(true); setError('');
+    try {
+      await api.delete(`/equipe/${deleteMember.id}`, { confirm: true });
+      setDeleteMember(null); setSelectedDetail(null);
+      setNotice('Usuário excluído da equipe. O histórico comercial foi preservado.');
+      await loadEquipe();
+    } catch (err: any) {
+      setDeleteMember(null); setError(err.message || 'Não foi possível excluir o usuário.');
+    } finally { setDeleting(false); }
+  };
+
   const resumo = data?.resumo || {
     quantidade_vendedores: 0,
     receita_total_equipe: 0,
@@ -138,6 +154,9 @@ export const EquipePage: React.FC = () => {
       <ConfirmModal open={Boolean(removeMember)} title="Remover acesso do usuário" confirmLabel="Remover acesso"
         description={`Remover o acesso de ${removeMember?.nome || ''}? As sessões serão encerradas e o histórico comercial será preservado.`}
         onConfirm={handleRemove} onCancel={() => setRemoveMember(null)} />
+      <ConfirmModal open={Boolean(deleteMember)} title="Excluir usuário" confirmLabel="Excluir usuário" loading={deleting}
+        description={`Excluir ${deleteMember?.nome || ''} da equipe? A conta perderá o acesso e não poderá ser reativada pela tela Equipe. Clientes, negociações e histórico serão preservados.`}
+        onConfirm={handleDelete} onCancel={() => { if (!deleting) setDeleteMember(null); }} />
       {/* Cabeçalho e Botão Cadastrar Vendedor */}
       <div className="bg-white rounded-2xl border border-zinc-200/80 p-6 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -233,8 +252,8 @@ export const EquipePage: React.FC = () => {
             }`}
           >
             <div>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex items-start gap-3 min-w-[140px] flex-1">
                   <div className="w-10 h-10 rounded-full bg-[#111111] text-white font-bold text-sm flex items-center justify-center shrink-0">
                     {getInitials(member.nome)}
                   </div>
@@ -274,6 +293,9 @@ export const EquipePage: React.FC = () => {
                   </button>
                   {member.active && <button type="button" onClick={(e) => { e.stopPropagation(); setError(''); setEditMember({ ...member, password: '' }); }} title="Definir senha"
                     className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100"><KeyRound className="w-3.5 h-3.5" /></button>}
+                  {member.id !== user?.id && <button type="button" title="Excluir usuário" aria-label={`Excluir usuário ${member.nome}`}
+                    onClick={(e) => { e.stopPropagation(); setError(''); setDeleteMember(member); }}
+                    className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"><Trash2 className="w-3.5 h-3.5" /></button>}
                 </div>
               </div>
 

@@ -102,6 +102,7 @@ apiRouter.get(
 );
 apiRouter.post('/equipe', requireAuth, requireRole('GESTOR'), gestaoController.createVendedor);
 apiRouter.put('/equipe/:id', requireAuth, requireRole('GESTOR'), gestaoController.updateVendedor);
+apiRouter.delete('/equipe/:id', requireAuth, requireRole('GESTOR'), gestaoController.deleteVendedor);
 apiRouter.patch(
   '/equipe/:id/status',
   requireAuth,

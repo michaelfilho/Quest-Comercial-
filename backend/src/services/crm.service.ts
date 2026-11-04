@@ -11,7 +11,7 @@ function toNum(v: any): number {
 
 export const crmService = {
   async listResponsaveis() {
-    const { rows } = await db.query('SELECT id, name FROM users ORDER BY name ASC');
+    const { rows } = await db.query('SELECT id, name FROM users WHERE deleted_at IS NULL ORDER BY name ASC');
     return rows;
   },
   async listStages() {

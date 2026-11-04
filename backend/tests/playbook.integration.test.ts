@@ -690,6 +690,52 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     expect(preserved.status).toBe(200);
   });
 
+  it('Excluir usuário: apenas gestor, confirmação obrigatória, bloqueio de acesso e histórico preservado', async () => {
+    const created = await request(app).post('/api/v1/equipe').set('Cookie', gestorCookie).send({
+      name: 'Usuário para Exclusão', email: 'excluir@example.test', cargo: 'Comercial', password: 'AcessoExcluir2026!Teste', meta_mensal_opcional: 1000,
+    });
+    expect(created.status).toBe(201);
+    const targetId = created.body.usuario.id;
+    const login = await request(app).post('/api/v1/auth/login').send({ email: 'excluir@example.test', password: 'AcessoExcluir2026!Teste' });
+    expect(login.status).toBe(200);
+    const cookie = login.headers['set-cookie'][0].split(';')[0];
+    const client = await request(app).post('/api/v1/clientes').set('Cookie', cookie).send({ nome: 'Cliente preservado', empresa: 'Empresa preservada' });
+    expect(client.status).toBe(201);
+    const deal = await request(app).post('/api/v1/negociacoes').set('Cookie', cookie)
+      .send({ nome: 'Negócio preservado', cliente_id: client.body.cliente.id, etapa_id: stages[0].id, valor: 5000 });
+    expect(deal.status).toBe(201);
+    const denied = await request(app).delete(`/api/v1/equipe/${targetId}`).set('Cookie', tiagoCookie).send({ confirm: true });
+    expect(denied.status).toBe(403);
+    expect((await request(app).delete(`/api/v1/equipe/${targetId}`).send({ confirm: true })).status).toBe(401);
+    expect((await request(app).delete(`/api/v1/equipe/${targetId}`).set('Cookie', gestorCookie).send({})).status).toBe(400);
+    expect((await request(app).delete(`/api/v1/equipe/${gestorId}`).set('Cookie', gestorCookie).send({ confirm: true })).status).toBe(400);
+    const token = await request(app).post('/api/v1/auth/forgot-password').set('Cookie', gestorCookie).send({ email: 'excluir@example.test' });
+    expect(token.body.resetTokenForSetup).toBeTruthy();
+    const removed = await request(app).delete(`/api/v1/equipe/${targetId}`).set('Cookie', gestorCookie).send({ confirm: true });
+    expect(removed.status).toBe(200);
+    expect(removed.body.deleted).toBe(true);
+    const team = await request(app).get('/api/v1/equipe').set('Cookie', gestorCookie);
+    expect(team.body.integrantes.some((member: any) => member.id === targetId)).toBe(false);
+    expect((await request(app).get('/api/v1/pipeline/responsaveis').set('Cookie', tiagoCookie)).body.accounts.some((member: any) => member.id === targetId)).toBe(false);
+    expect((await request(app).get('/api/v1/auth/me').set('Cookie', cookie)).status).toBe(401);
+    expect((await request(app).post('/api/v1/auth/login').send({ email: 'excluir@example.test', password: 'AcessoExcluir2026!Teste' })).status).toBe(401);
+    expect((await request(app).put(`/api/v1/equipe/${targetId}`).set('Cookie', gestorCookie).send({ password: 'OutraSenha2026!Teste' })).status).toBe(404);
+    expect((await request(app).patch(`/api/v1/equipe/${targetId}/status`).set('Cookie', gestorCookie).send({ active: true })).status).toBe(404);
+    expect((await request(app).get(`/api/v1/equipe/${targetId}`).set('Cookie', gestorCookie)).status).toBe(404);
+    expect((await request(app).post('/api/v1/auth/reset-password').send({ token: token.body.resetTokenForSetup, newPassword: 'ConviteRevogado2026!' })).status).toBe(400);
+    const preserved = await request(app).get(`/api/v1/negociacoes/${deal.body.negociacao.id}`).set('Cookie', tiagoCookie);
+    expect(preserved.status).toBe(200);
+    expect(preserved.body.negociacao.owner_id).toBe(targetId);
+    const account = await db.queryOne('SELECT active, password_hash, deleted_at FROM users WHERE id = $1', [targetId]);
+    expect(account!.active).toBe(false);
+    expect(account!.password_hash).toBeNull();
+    expect(account!.deleted_at).toBeTruthy();
+    expect((await db.query('SELECT id FROM metas WHERE vendedor_id = $1', [targetId])).rows.length).toBe(1);
+    expect((await db.query('SELECT id FROM clientes WHERE responsavel_id = $1', [targetId])).rows.length).toBe(1);
+    expect((await db.query("SELECT id FROM audit_logs WHERE entidade_id = $1 AND acao = 'USUARIO_EXCLUIDO'", [targetId])).rows.length).toBe(1);
+    expect((await request(app).delete(`/api/v1/equipe/${targetId}`).set('Cookie', gestorCookie).send({ confirm: true })).status).toBe(404);
+  });
+
   it('VULN-6: deve aplicar headers de segurança estritos (CSP, X-Frame-Options: DENY, HSTS, X-Content-Type-Options)', async () => {
     const res = await request(app).get('/api/v1/health');
     expect(res.headers['x-frame-options']).toBe('DENY');

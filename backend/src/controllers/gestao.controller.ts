@@ -5,11 +5,21 @@ import {
   metaCreateSchema,
   metaUpdateSchema,
   vendedorCreateSchema,
+  vendedorDeleteSchema,
+  vendedorIdSchema,
   vendedorStatusSchema,
   vendedorUpdateSchema,
 } from '../validators/gestao.validator.js';
 
 export const gestaoController = {
+  async deleteVendedor(req: Request, res: Response, next: NextFunction) {
+    try {
+      vendedorDeleteSchema.parse(req.body);
+      const id = vendedorIdSchema.parse(req.params.id);
+      const result = await gestaoService.deleteVendedor(req.user!, id, req.ip);
+      res.json(result);
+    } catch (err) { next(err); }
+  },
   async getOverview(req: Request, res: Response, next: NextFunction) {
     try {
       const overview = await gestaoService.getOverviewDashboard(req.user!, {
