@@ -10,6 +10,9 @@ import {
 } from '../validators/crm.validator.js';
 
 export const crmController = {
+  async listResponsaveis(_req: Request, res: Response, next: NextFunction) {
+    try { res.json({ accounts: await crmService.listResponsaveis() }); } catch (err) { next(err); }
+  },
   async listStages(_req: Request, res: Response, next: NextFunction) {
     try {
       const stages = await crmService.listStages();
@@ -65,6 +68,7 @@ export const crmController = {
     try {
       const pipeline = await crmService.getPipeline(req.user!, {
         ownerId: req.query.ownerId as string | undefined,
+        stageId: req.query.stageId as string | undefined,
         status: req.query.status as string | undefined,
         search: req.query.search as string | undefined,
       });

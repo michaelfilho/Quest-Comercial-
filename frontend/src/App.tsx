@@ -12,7 +12,7 @@ import { ResultadosPage } from './pages/ResultadosPage';
 import { EquipePage } from './pages/EquipePage';
 import { RituaisPage } from './pages/RituaisPage';
 import { PlaybookInboundPage } from './pages/PlaybookInboundPage';
-import { AssistenteIaPage } from './pages/AssistenteIaPage';
+import { QuestLogo } from './components/ui/QuestLogo';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,11 +33,11 @@ const ProtectedRoute: React.FC<{
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F5F5] text-[#111111]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#FF5A00] text-white font-extrabold flex items-center justify-center animate-pulse">
-            Q
+          <div className="animate-pulse">
+            <QuestLogo compact />
           </div>
           <span className="text-sm font-semibold text-[#333333]">
-            Carregando Playbook de Vendas Quest...
+            Carregando Quest Seller...
           </span>
         </div>
       </div>
@@ -81,7 +81,6 @@ export const AppRoutes: React.FC = () => {
         />
         <Route path="rituais" element={<RituaisPage />} />
         <Route path="playbook-inbound" element={<PlaybookInboundPage />} />
-        <Route path="assistente" element={<AssistenteIaPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -1,6 +1,6 @@
 export const QUEST_BRAND_2026 = {
   company: 'Quest Comunicação Total',
-  system: 'Playbook de Vendas Quest',
+  system: 'Quest Seller',
   colors: {
     orange: '#FF5A00',
     black: '#111111',

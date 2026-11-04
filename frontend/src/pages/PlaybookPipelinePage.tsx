@@ -23,7 +23,6 @@ import {
   Search,
   AlertCircle,
 } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { formatBRL, formatDateBR, formatDateTimeBR } from '../lib/utils';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
@@ -182,7 +181,6 @@ const DraggableDealCard: React.FC<{
 };
 
 export const PlaybookPipelinePage: React.FC = () => {
-  const { user } = useAuth();
   const [columns, setColumns] = useState<PipelineColumn[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -191,10 +189,13 @@ export const PlaybookPipelinePage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [ownerFilter, setOwnerFilter] = useState('');
+  const [stageFilter, setStageFilter] = useState('');
 
   const [newClienteModal, setNewClienteModal] = useState(false);
   const [newDealModal, setNewDealModal] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<Negociacao | null>(null);
+  const [editDeal, setEditDeal] = useState({ nome: '', valor: '', probabilidade: '', expected_close_date: '', produto: '' });
+  const [error, setError] = useState('');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Forms
@@ -236,6 +237,7 @@ export const PlaybookPipelinePage: React.FC = () => {
       if (search) q.set('search', search);
       if (statusFilter) q.set('status', statusFilter);
       if (ownerFilter) q.set('ownerId', ownerFilter);
+      if (stageFilter) q.set('stageId', stageFilter);
 
       const [pipeRes, cliRes] = await Promise.all([
         api.get(`/pipeline?${q.toString()}`),
@@ -252,22 +254,25 @@ export const PlaybookPipelinePage: React.FC = () => {
     } catch {
       // ignore
     }
-  }, [search, statusFilter, ownerFilter, dealForm.etapa_id]);
+  }, [search, statusFilter, ownerFilter, stageFilter, dealForm.etapa_id]);
 
   useEffect(() => {
     loadData();
-    if (user?.role === 'GESTOR') {
+    {
       api
-        .get<{ accounts: any[] }>('/auth/initial-accounts')
+        .get<{ accounts: any[] }>('/pipeline/responsaveis')
         .then((r) => setSellers(r.accounts || []))
         .catch(() => {});
     }
-  }, [loadData, user]);
+  }, [loadData]);
 
   const openDealModal = async (dealId: string) => {
     try {
       const res = await api.get<{ negociacao: Negociacao }>(`/negociacoes/${dealId}`);
       setSelectedDeal(res.negociacao);
+      setEditDeal({ nome: res.negociacao.nome, valor: String(res.negociacao.valor),
+        probabilidade: String(res.negociacao.probabilidade), expected_close_date: res.negociacao.expected_close_date?.slice(0, 10) || '',
+        produto: res.negociacao.produto || '' });
     } catch {
       // ignore
     }
@@ -405,8 +410,15 @@ export const PlaybookPipelinePage: React.FC = () => {
             <option value="PERDIDO">Perdido</option>
           </select>
 
-          {user?.role === 'GESTOR' && (
+          <select aria-label="Filtrar por estágio" value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+            className="px-3 py-2 text-xs font-medium bg-white rounded-xl border border-zinc-300">
+            <option value="">Todos os Estágios</option>
+            {stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.nome}</option>)}
+          </select>
+          {(
             <select
+              aria-label="Filtrar por usuário"
               value={ownerFilter}
               onChange={(e) => setOwnerFilter(e.target.value)}
               className="px-3 py-2 text-xs font-medium bg-white rounded-xl border border-zinc-300"
@@ -797,6 +809,39 @@ export const PlaybookPipelinePage: React.FC = () => {
               </div>
             </div>
 
+            {error && <p role="alert" className="my-3 text-sm text-red-700">{error}</p>}
+            <form className="my-4 grid grid-cols-1 sm:grid-cols-3 gap-3" onSubmit={async (e) => {
+              e.preventDefault(); setError('');
+              try {
+                const res = await api.put<{ negociacao: Negociacao }>(`/negociacoes/${selectedDeal.id}`, {
+                  nome: editDeal.nome, valor: Number(editDeal.valor), probabilidade: Number(editDeal.probabilidade),
+                  expected_close_date: editDeal.expected_close_date || null, produto: editDeal.produto || null,
+                });
+                setSelectedDeal(res.negociacao); await loadData();
+              } catch (err: any) { setError(err.message || 'Não foi possível salvar a negociação.'); }
+            }}>
+              <label className="text-xs font-semibold">Nome da negociação
+                <input aria-label="Nome da negociação" required minLength={2} maxLength={200} value={editDeal.nome}
+                  onChange={(e) => setEditDeal({ ...editDeal, nome: e.target.value })} className="w-full rounded-lg border p-2 mt-1" />
+              </label>
+              <label className="text-xs font-semibold">Valor (R$)
+                <input aria-label="Valor da negociação" type="number" min={0} max={1000000000} step="0.01" required value={editDeal.valor}
+                  onChange={(e) => setEditDeal({ ...editDeal, valor: e.target.value })} className="w-full rounded-lg border p-2 mt-1" />
+              </label>
+              <label className="text-xs font-semibold">Probabilidade (%)
+                <input aria-label="Probabilidade da negociação" type="number" min={0} max={100} required value={editDeal.probabilidade}
+                  onChange={(e) => setEditDeal({ ...editDeal, probabilidade: e.target.value })} className="w-full rounded-lg border p-2 mt-1" />
+              </label>
+              <label className="text-xs font-semibold">Previsão de fechamento
+                <input aria-label="Previsão de fechamento" type="date" value={editDeal.expected_close_date}
+                  onChange={(e) => setEditDeal({ ...editDeal, expected_close_date: e.target.value })} className="w-full rounded-lg border p-2 mt-1" />
+              </label>
+              <label className="text-xs font-semibold">Produto
+                <input aria-label="Produto da negociação" maxLength={120} value={editDeal.produto}
+                  onChange={(e) => setEditDeal({ ...editDeal, produto: e.target.value })} className="w-full rounded-lg border p-2 mt-1" />
+              </label>
+              <button type="submit" className="self-end rounded-xl bg-[#FF5A00] text-white text-xs font-bold p-3">Salvar negociação</button>
+            </form>
             {/* Resumo Financeiro e Seletor de Etapa */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 my-4">
               <div className="p-3.5 rounded-xl bg-[#F5F5F5]">

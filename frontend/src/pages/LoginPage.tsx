@@ -1,18 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, KeyRound, CheckCircle2, ArrowLeft, Shield } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, KeyRound, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { QuestLogo } from '../components/ui/QuestLogo';
-
-interface InitialAccount {
-  id: string;
-  name: string;
-  email: string;
-  role: 'GESTOR' | 'VENDEDOR';
-  cargo: string;
-  activated: boolean;
-}
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -30,19 +21,14 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
-  const [initialAccounts, setInitialAccounts] = useState<InitialAccount[]>([]);
-
-  const loadAccounts = async () => {
-    try {
-      const res = await api.get<{ accounts: InitialAccount[] }>('/auth/initial-accounts');
-      setInitialAccounts(res.accounts || []);
-    } catch {
-      // ignore
+  // Convite emitido pela gestão; fragmento removido do endereço após leitura.
+  React.useEffect(() => {
+    const token = new URLSearchParams(window.location.hash.slice(1)).get('convite');
+    if (token) {
+      setResetToken(token);
+      setMode('reset');
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-  };
-
-  useEffect(() => {
-    loadAccounts();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -55,32 +41,6 @@ export const LoginPage: React.FC = () => {
       navigate('/', { replace: true });
     } catch (err: any) {
       setError(err.message || 'Falha na autenticação.');
-      if (err.code === 'ACCOUNT_NEEDS_ACTIVATION') {
-        setMode('forgot');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setInfoMessage(null);
-    setLoading(true);
-    try {
-      const res = await api.post<{
-        message: string;
-        resetTokenForSetup?: string | null;
-      }>('/auth/forgot-password', { email });
-
-      setInfoMessage(res.message);
-      if (res.resetTokenForSetup) {
-        setResetToken(res.resetTokenForSetup);
-      }
-      setMode('reset');
-    } catch (err: any) {
-      setError(err.message || 'Erro ao solicitar token.');
     } finally {
       setLoading(false);
     }
@@ -99,7 +59,6 @@ export const LoginPage: React.FC = () => {
       setInfoMessage(res.message);
       if (res.email) setEmail(res.email);
       setPassword('');
-      await loadAccounts();
       setMode('login');
     } catch (err: any) {
       setError(err.message || 'Erro ao redefinir senha.');
@@ -119,63 +78,15 @@ export const LoginPage: React.FC = () => {
               Quest Comunicação Total • 2026
             </span>
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-              Playbook de Vendas & Inteligência Comercial
+              Quest Seller
             </h1>
             <p className="text-sm text-zinc-400 leading-relaxed">
               Plataforma corporativa integrada de CRM, Pipeline em 5 etapas, Gestão de Metas,
-              KPIs do Funil Inbound + Consultoria, Rotinas e Rituais e Assistente Comercial IA.
+              KPIs do Funil Inbound + Consultoria, Rotinas e Rituais.
             </p>
           </div>
 
-          {/* Contas Oficiais Iniciais da Equipe Quest */}
-          <div className="mt-8 bg-white/5 border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-[#FF5A00]" />
-                Equipe Comercial Quest (Clique para selecionar)
-              </span>
-            </div>
-            <div className="space-y-2">
-              {initialAccounts.map((acc) => (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => {
-                    setEmail(acc.email);
-                    setError(null);
-                    if (!acc.activated) {
-                      setMode('forgot');
-                      setInfoMessage(
-                        `A conta de ${acc.name} ainda não possui senha definida. Gere o token seguro abaixo para ativar seu acesso.`
-                      );
-                    } else {
-                      setMode('login');
-                    }
-                  }}
-                  className="w-full text-left p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#FF5A00]/40 transition-all flex items-center justify-between gap-2"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-white break-words">
-                      {acc.name}{' '}
-                      <span className="text-[10px] font-bold text-[#FF5A00]">({acc.role})</span>
-                    </p>
-                    <p className="text-[11px] text-zinc-400 break-all sm:break-words">
-                      {acc.cargo} • {acc.email}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      acc.activated
-                        ? 'bg-emerald-500/20 text-emerald-300'
-                        : 'bg-amber-500/20 text-amber-300'
-                    }`}
-                  >
-                    {acc.activated ? 'Ativa' : 'Definir Senha'}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+
         </div>
 
         <p className="mt-8 text-xs text-zinc-500">
@@ -246,7 +157,7 @@ export const LoginPage: React.FC = () => {
                       }}
                       className="text-xs font-semibold text-[#FF5A00] hover:underline"
                     >
-                      Esqueci minha senha / 1º Acesso
+                      Esqueci minha senha
                     </button>
                   </div>
                   <div className="relative">
@@ -298,10 +209,10 @@ export const LoginPage: React.FC = () => {
 
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-[#111111]">
-                  Recuperação / Ativação de Senha
+                  Recuperar acesso
                 </h2>
                 <p className="text-sm text-[#333333] mt-1">
-                  Informe seu e-mail corporativo para gerar um token seguro com expiração.
+                  A recuperação de acesso é autorizada pela gestão comercial.
                 </p>
               </div>
 
@@ -317,29 +228,7 @@ export const LoginPage: React.FC = () => {
                 </div>
               )}
 
-              <form onSubmit={handleForgotPassword} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#111111] mb-1.5">
-                    E-mail Corporativo
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nome@questcomunicacao.com.br"
-                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-zinc-300 focus:outline-none focus:border-[#FF5A00]"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 px-4 rounded-xl bg-[#FF5A00] hover:bg-[#E04F00] text-white font-semibold text-sm transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Gerando token seguro...' : 'Gerar Token de Definição de Senha'}
-                </button>
-              </form>
+              <p className="text-sm text-[#333333]">Entre em contato com André ou com a gestão comercial para receber um convite de redefinição de senha.</p>
             </>
           )}
 

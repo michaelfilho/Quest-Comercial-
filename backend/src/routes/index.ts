@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { db, getDatabaseEngineMode } from '../config/database.js';
 import { requireAuth, requireRole } from '../middlewares/auth.middleware.js';
 import {
-  aiRateLimiter,
   apiRateLimiter,
   authRateLimiter,
 } from '../middlewares/rateLimit.middleware.js';
@@ -41,10 +40,10 @@ apiRouter.get('/health', async (_req, res) => {
 apiRouter.post('/auth/login', authRateLimiter, authController.login);
 apiRouter.post('/auth/logout', requireAuth, authController.logout);
 apiRouter.get('/auth/me', requireAuth, authController.me);
-apiRouter.post('/auth/forgot-password', authRateLimiter, authController.forgotPassword);
+apiRouter.post('/auth/forgot-password', requireAuth, requireRole('GESTOR'), authRateLimiter, authController.forgotPassword);
 apiRouter.post('/auth/reset-password', authRateLimiter, authController.resetPassword);
 apiRouter.post('/auth/change-password', requireAuth, authController.changePassword);
-apiRouter.get('/auth/initial-accounts', authController.initialAccounts);
+apiRouter.get('/auth/initial-accounts', requireAuth, requireRole('GESTOR'), authController.initialAccounts);
 
 // ============================================================================
 // MÓDULO VISÃO GERAL (Seção 6)
@@ -60,6 +59,7 @@ apiRouter.post('/clientes', requireAuth, crmController.createCliente);
 apiRouter.put('/clientes/:id', requireAuth, crmController.updateCliente);
 apiRouter.delete('/clientes/:id', requireAuth, crmController.deleteCliente);
 
+apiRouter.get('/pipeline/responsaveis', requireAuth, crmController.listResponsaveis);
 apiRouter.get('/pipeline', requireAuth, crmController.getPipeline);
 apiRouter.get('/negociacoes/:id', requireAuth, crmController.getNegociacao);
 apiRouter.post('/negociacoes', requireAuth, crmController.createNegociacao);
@@ -119,26 +119,17 @@ apiRouter.post('/rituais/:id/execucoes', requireAuth, conteudoController.createR
 // MÓDULO PLAYBOOK INBOUND (Seção 12)
 // ============================================================================
 apiRouter.get('/playbook-inbound', requireAuth, conteudoController.getPlaybookInbound);
+apiRouter.put('/playbook-inbound/reference/:key', requireAuth, conteudoController.saveReferenceText);
 apiRouter.put(
   '/playbook-inbound/:id',
   requireAuth,
-  requireRole('GESTOR'),
   conteudoController.updatePlaybookConteudo
 );
 
 // ============================================================================
 // MÓDULO ASSISTENTE COMERCIAL IA (Seção 13)
 // ============================================================================
-apiRouter.get('/assistente/conversas', requireAuth, conteudoController.listConversas);
-apiRouter.post('/assistente/conversas', requireAuth, conteudoController.createConversa);
-apiRouter.get('/assistente/conversas/:id', requireAuth, conteudoController.getConversa);
-apiRouter.delete('/assistente/conversas/:id', requireAuth, conteudoController.deleteConversa);
-apiRouter.post(
-  '/assistente/conversas/:id/mensagens',
-  requireAuth,
-  aiRateLimiter,
-  conteudoController.sendMensagem
-);
+// Assistente IA removido: endpoints indisponíveis.
 
 // ============================================================================
 // MÓDULO INTEGRAÇÕES E WEBHOOKS — n8n / Radar Quest (Seção 15)

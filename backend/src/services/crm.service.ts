@@ -10,6 +10,10 @@ function toNum(v: any): number {
 }
 
 export const crmService = {
+  async listResponsaveis() {
+    const { rows } = await db.query('SELECT id, name FROM users ORDER BY name ASC');
+    return rows;
+  },
   async listStages() {
     const { rows } = await db.query<{
       id: string;
@@ -26,10 +30,7 @@ export const crmService = {
     const params: any[] = [];
     const where: string[] = [];
 
-    if (user.role === 'VENDEDOR') {
-      params.push(user.id);
-      where.push(`c.responsavel_id = $${params.length}`);
-    } else if (filters?.responsavelId) {
+    if (filters?.responsavelId) {
       params.push(filters.responsavelId);
       where.push(`c.responsavel_id = $${params.length}`);
     }
@@ -104,14 +105,6 @@ export const crmService = {
 
     if (!existing) {
       throw new AppError('Cliente não encontrado.', 404, 'CLIENTE_NOT_FOUND');
-    }
-
-    if (user.role === 'VENDEDOR' && existing.responsavel_id !== user.id) {
-      throw new AppError(
-        'Acesso negado. Você só pode editar clientes sob sua responsabilidade.',
-        403,
-        'FORBIDDEN'
-      );
     }
 
     const responsavelId =
@@ -204,19 +197,21 @@ export const crmService = {
 
   async getPipeline(
     user: AuthenticatedUser,
-    filters?: { ownerId?: string; status?: string; search?: string }
+    filters?: { ownerId?: string; stageId?: string; status?: string; search?: string }
   ) {
     const stages = await this.listStages();
 
     const params: any[] = [];
     const where: string[] = [];
 
-    if (user.role === 'VENDEDOR') {
-      params.push(user.id);
-      where.push(`n.owner_id = $${params.length}`);
-    } else if (filters?.ownerId) {
+    if (filters?.ownerId) {
       params.push(filters.ownerId);
       where.push(`n.owner_id = $${params.length}`);
+    }
+
+    if (filters?.stageId) {
+      params.push(filters.stageId);
+      where.push(`n.etapa_id = $${params.length}`);
     }
 
     if (filters?.status && ['EM_ANDAMENTO', 'GANHO', 'PERDIDO'].includes(filters.status)) {
@@ -330,14 +325,7 @@ export const crmService = {
       throw new AppError('Negociação não encontrada.', 404, 'NEGOCIACAO_NOT_FOUND');
     }
 
-    // Regra de segurança obrigatória (Seção 4): O vendedor não poderá visualizar negociações privadas de outros vendedores.
-    if (user.role === 'VENDEDOR' && deal.owner_id !== user.id) {
-      throw new AppError(
-        'Acesso negado. Vendedores não podem visualizar negociações privadas de outros vendedores.',
-        403,
-        'FORBIDDEN'
-      );
-    }
+    // Playbook compartilhado entre todos os integrantes autenticados.
 
     const { rows: atividades } = await db.query(
       `SELECT
@@ -390,14 +378,6 @@ export const crmService = {
 
     if (!cliente) {
       throw new AppError('Cliente selecionado não encontrado.', 404, 'CLIENTE_NOT_FOUND');
-    }
-
-    if (user.role === 'VENDEDOR' && cliente.responsavel_id !== user.id) {
-      throw new AppError(
-        'Você só pode criar negociações para clientes sob sua responsabilidade.',
-        403,
-        'FORBIDDEN'
-      );
     }
 
     const ownerId = user.role === 'GESTOR' && data.owner_id ? data.owner_id : user.id;
@@ -486,11 +466,7 @@ export const crmService = {
       throw new AppError('Negociação não encontrada.', 404, 'NEGOCIACAO_NOT_FOUND');
     }
 
-    if (user.role === 'VENDEDOR' && existing.owner_id !== user.id) {
-      throw new AppError('Acesso negado a esta negociação.', 403, 'FORBIDDEN');
-    }
-
-    // 🔒 SEGURANÇA [VULN-3 / Lei 5 & Lei 6]: Valida propriedade do novo cliente_id antes de reatribuir — previne IDOR/BOLA (CWE-639)
+    // Valida a existência do cliente ao editar negociações compartilhadas.
     if (data.cliente_id && data.cliente_id !== existing.cliente_id) {
       const targetCliente = await db.queryOne<{ id: string; responsavel_id: string }>(
         `SELECT id, responsavel_id FROM clientes WHERE id = $1`,
@@ -498,13 +474,6 @@ export const crmService = {
       );
       if (!targetCliente) {
         throw new AppError('Cliente selecionado não encontrado.', 404, 'CLIENTE_NOT_FOUND');
-      }
-      if (user.role === 'VENDEDOR' && targetCliente.responsavel_id !== user.id) {
-        throw new AppError(
-          'Acesso negado. Você não pode vincular uma negociação a um cliente de outro vendedor.',
-          403,
-          'FORBIDDEN'
-        );
       }
     }
 
@@ -550,7 +519,7 @@ export const crmService = {
              stage_changed_at = CASE WHEN $11::boolean THEN CURRENT_TIMESTAMP ELSE stage_changed_at END,
              last_activity_at = CURRENT_TIMESTAMP,
              forecast_score = $12,
-             produto = COALESCE($13, produto),
+             produto = $13,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $14`,
         [
@@ -566,7 +535,7 @@ export const crmService = {
           closedDate,
           stageChanged,
           data.forecast_score !== undefined ? data.forecast_score : existing.forecast_score,
-          data.produto ?? null,
+          data.produto !== undefined ? data.produto : existing.produto,
           id,
         ]
       );
@@ -619,10 +588,6 @@ export const crmService = {
     const existing = await db.queryOne<any>(`SELECT * FROM negociacoes WHERE id = $1`, [id]);
     if (!existing) {
       throw new AppError('Negociação não encontrada.', 404, 'NEGOCIACAO_NOT_FOUND');
-    }
-
-    if (user.role === 'VENDEDOR' && existing.owner_id !== user.id) {
-      throw new AppError('Acesso negado a esta negociação.', 403, 'FORBIDDEN');
     }
 
     const targetStage = await db.queryOne<{
@@ -708,10 +673,6 @@ export const crmService = {
       throw new AppError('Negociação não encontrada.', 404, 'NEGOCIACAO_NOT_FOUND');
     }
 
-    if (user.role === 'VENDEDOR' && existing.owner_id !== user.id) {
-      throw new AppError('Acesso negado a esta negociação.', 403, 'FORBIDDEN');
-    }
-
     const closedDate =
       params.status === 'GANHO' || params.status === 'PERDIDO'
         ? params.closed_date
@@ -784,10 +745,6 @@ export const crmService = {
     );
     if (!existing) {
       throw new AppError('Negociação não encontrada.', 404, 'NEGOCIACAO_NOT_FOUND');
-    }
-
-    if (user.role === 'VENDEDOR' && existing.owner_id !== user.id) {
-      throw new AppError('Acesso negado a esta negociação.', 403, 'FORBIDDEN');
     }
 
     const atividadeId = crypto.randomUUID();

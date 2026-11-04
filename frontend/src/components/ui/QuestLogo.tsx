@@ -1,14 +1,13 @@
 import React from 'react';
+import questSymbol from '../../assets/quest-symbol.svg';
 
 export const QuestLogo: React.FC<{ compact?: boolean; light?: boolean }> = ({
   compact = false,
   light = false,
 }) => {
   return (
-    <div className="flex items-center gap-3 select-none">
-      <div className="w-10 h-10 rounded-xl bg-[#FF5A00] flex items-center justify-center shadow-sm shrink-0">
-        <span className="text-white font-extrabold text-xl tracking-tighter">Q</span>
-      </div>
+    <div className="flex items-center gap-3 select-none" aria-label="Quest Seller">
+      <img src={questSymbol} alt="" aria-hidden="true" className="w-10 h-10 object-contain shrink-0" />
       {!compact && (
         <div className="flex flex-col leading-tight">
           <div className="flex items-center gap-1.5">
@@ -17,10 +16,7 @@ export const QuestLogo: React.FC<{ compact?: boolean; light?: boolean }> = ({
                 light ? 'text-white' : 'text-[#111111]'
               }`}
             >
-              QUEST
-            </span>
-            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#FF5A00]/15 text-[#FF5A00]">
-              2026
+              Quest Seller
             </span>
           </div>
           <span
@@ -28,7 +24,7 @@ export const QuestLogo: React.FC<{ compact?: boolean; light?: boolean }> = ({
               light ? 'text-zinc-400' : 'text-[#333333]'
             }`}
           >
-            Playbook de Vendas
+            Gestão Comercial
           </span>
         </div>
       )}

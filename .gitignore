@@ -30,4 +30,6 @@ coverage/
 .vite/
 **/.vite/
 *.tsbuildinfo
+test-results/
+playwright-report/
 

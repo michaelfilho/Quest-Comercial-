@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { request } from './testClient.js';
 import { app } from '../src/app.js';
 import { db, initDatabase } from '../src/config/database.js';
+import { authService } from '../src/services/auth.service.js';
 import { seedDatabase } from '../prisma/seed.js';
 
 describe('Playbook de Vendas Quest — Testes Completos de Integração Backend & PostgreSQL', () => {
@@ -19,7 +20,6 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
   let negociacaoTiagoId = '';
   let negociacaoKatiaId = '';
   let metaTiagoId = '';
-  let conversaTiagoId = '';
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
@@ -37,7 +37,10 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     expect(healthRes.body.status).toBe('ok');
     expect(healthRes.body.database).toBe('connected');
 
-    const accRes = await request(app).get('/api/v1/auth/initial-accounts');
+    const publicAccounts = await request(app).get('/api/v1/auth/initial-accounts');
+    expect(publicAccounts.status).toBe(401);
+    const { rows } = await db.query('SELECT *, (password_hash IS NOT NULL) AS activated FROM users WHERE active = true');
+    const accRes = { status: 200, body: { accounts: rows } };
     expect(accRes.status).toBe(200);
     expect(accRes.body.accounts.length).toBeGreaterThanOrEqual(4);
 
@@ -63,9 +66,8 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     expect(unauth.status).toBe(401);
 
     // Ativa conta do Gestor (André Maciel) via token seguro
-    const forgotGestor = await request(app)
-      .post('/api/v1/auth/forgot-password')
-      .send({ email: 'andre.maciel@questcomunicacao.com.br' });
+    // Bootstrap restrito ao banco isolado do teste; não existe ativação pública.
+    const forgotGestor = { status: 200, body: await authService.requestPasswordResetOrActivation('andre.maciel@questcomunicacao.com.br') };
     expect(forgotGestor.status).toBe(200);
     expect(forgotGestor.body.resetTokenForSetup).toBeTruthy();
 
@@ -102,7 +104,7 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
 
     // Ativa e autentica Tiago Hilário (Vendedor Inbound / Consultoria)
     const forgotTiago = await request(app)
-      .post('/api/v1/auth/forgot-password')
+      .post('/api/v1/auth/forgot-password').set('Cookie', gestorCookie)
       .send({ email: 'tiago.hilario@questcomunicacao.com.br' });
     await request(app).post('/api/v1/auth/reset-password').send({
       token: forgotTiago.body.resetTokenForSetup,
@@ -118,7 +120,7 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
 
     // Ativa e autentica Katia Gebran (Vendas Advertising)
     const forgotKatia = await request(app)
-      .post('/api/v1/auth/forgot-password')
+      .post('/api/v1/auth/forgot-password').set('Cookie', gestorCookie)
       .send({ email: 'katia.gebran@questcomunicacao.com.br' });
     await request(app).post('/api/v1/auth/reset-password').send({
       token: forgotKatia.body.resetTokenForSetup,
@@ -172,7 +174,7 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     expect(reactivateRes.body.usuario.active).toBe(true);
   });
 
-  it('4. Criação de Clientes, Pipeline de 5 Etapas e Privacidade entre Vendedores', async () => {
+  it('4. Criação de Clientes, Pipeline de 5 Etapas e Compartilhamento entre Vendedores', async () => {
     // Verifica que as 5 etapas estão sempre visíveis mesmo sem negócios cadastrados
     const emptyPipeline = await request(app)
       .get('/api/v1/pipeline')
@@ -249,11 +251,11 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     expect(nKatia.status).toBe(201);
     negociacaoKatiaId = nKatia.body.negociacao.id;
 
-    // Tiago NÃO pode visualizar negociação privada da Katia (Seção 4)
+    // Tiago pode visualizar a negociação compartilhada da Katia.
     const forbiddenDeal = await request(app)
       .get(`/api/v1/negociacoes/${negociacaoKatiaId}`)
       .set('Cookie', tiagoCookie);
-    expect(forbiddenDeal.status).toBe(403);
+    expect(forbiddenDeal.status).toBe(200);
 
     // Gestor (André Maciel) visualiza todas as negociações da equipe
     const gestorPipeline = await request(app)
@@ -440,32 +442,11 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     expect(pbRes.body.secoes).toHaveLength(7);
   });
 
-  it('8. Assistente Comercial Quest (IA) e Isolamento de Histórico por Usuário + Webhooks', async () => {
-    // Tiago cria conversa no Assistente Comercial Quest
-    const convRes = await request(app)
-      .post('/api/v1/assistente/conversas')
-      .set('Cookie', tiagoCookie)
-      .send({ titulo: 'Estratégia de Fechamento Inbound' });
-    expect(convRes.status).toBe(201);
-    conversaTiagoId = convRes.body.conversa.id;
-
-    // Tiago envia mensagem e recebe orientação fundamentada no Playbook e em seus dados autorizados
-    const msgRes = await request(app)
-      .post(`/api/v1/assistente/conversas/${conversaTiagoId}/mensagens`)
-      .set('Cookie', tiagoCookie)
-      .send({
-        mensagem: 'Como estão minhas metas atuais e quais os próximos passos recomendados pelo Playbook?',
-      });
-    expect(msgRes.status).toBe(200);
-    expect(msgRes.body.mensagem_assistente.conteudo).toContain('Assistente Comercial Quest');
-    expect(msgRes.body.mensagem_assistente.ferramentas_usadas).toContain('consultarPlaybookQuest');
-
-    // Katia NÃO pode acessar a conversa privada de Tiago no Assistente IA (Seção 13)
-    const forbiddenChat = await request(app)
-      .get(`/api/v1/assistente/conversas/${conversaTiagoId}`)
-      .set('Cookie', katiaCookie);
-    expect(forbiddenChat.status).toBe(403);
-
+  it('8. Assistente removido e Webhooks preservados', async () => {
+    for (const route of ['/assistente/conversas', '/assistente/conversas/inexistente']) {
+      expect((await request(app).get('/api/v1' + route).set('Cookie', tiagoCookie)).status).toBe(404);
+      expect((await request(app).post('/api/v1' + route).set('Cookie', tiagoCookie).send({})).status).toBe(404);
+    }
     // Teste de Webhook autenticado com Idempotência (n8n / Radar Quest)
     const webhookPayload = {
       event: 'lead.created',
@@ -502,8 +483,8 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     const res = await request(app)
       .post('/api/v1/auth/forgot-password')
       .send({ email: 'andre.maciel@questcomunicacao.com.br' });
-    expect(res.status).toBe(200);
-    expect(res.body.resetTokenForSetup).toBeNull();
+    expect(res.status).toBe(401);
+    expect(res.body.resetTokenForSetup).toBeUndefined();
   });
 
   it('VULN-2: deve rejeitar adulteração de forecast_score de negociação de outro vendedor via execução de ritual (IDOR/BOLA)', async () => {
@@ -523,15 +504,14 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     expect(attackRes.body.error).toBe('FORBIDDEN');
   });
 
-  it('VULN-3: deve rejeitar vinculação de negociação própria a cliente pertencente a outro vendedor (IDOR/BOLA)', async () => {
+  it('Compartilhamento: permite vincular negociação a cliente da equipe', async () => {
     const attackRes = await request(app)
       .put(`/api/v1/negociacoes/${negociacaoTiagoId}`)
       .set('Cookie', tiagoCookie)
       .send({
         cliente_id: clienteKatiaId,
       });
-    expect(attackRes.status).toBe(403);
-    expect(attackRes.body.error).toBe('FORBIDDEN');
+    expect(attackRes.status).toBe(200);
   });
 
   it('VULN-4: deve rejeitar webhook sem assinatura ou com segredo inválido (Autenticação Zero-Trust)', async () => {
@@ -569,6 +549,97 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
       });
     expect(oversizedRes.status).toBe(400);
     expect(oversizedRes.body.error).toBe('VALIDATION_ERROR');
+  });
+
+  it('Playbook compartilhado: filtros combinados, edição por outro vendedor e autoria no histórico', async () => {
+    expect((await request(app).get('/api/v1/pipeline/responsaveis')).status).toBe(401);
+    const users = await request(app).get('/api/v1/pipeline/responsaveis').set('Cookie', tiagoCookie);
+    expect(users.status).toBe(200);
+    expect(users.body.accounts.some((u: any) => u.id === katiaId)).toBe(true);
+    expect(Object.keys(users.body.accounts[0]).sort()).toEqual(['id', 'name']);
+
+    const pipeline = await request(app).get('/api/v1/pipeline').set('Cookie', tiagoCookie);
+    expect(pipeline.body.negociacoes.some((n: any) => n.id === negociacaoKatiaId)).toBe(true);
+    const filtered = await request(app).get(`/api/v1/pipeline?ownerId=${katiaId}&stageId=${stages[1].id}`).set('Cookie', tiagoCookie);
+    expect(filtered.status).toBe(200);
+    expect(filtered.body.negociacoes.length).toBe(1);
+    expect(filtered.body.negociacoes[0].id).toBe(negociacaoKatiaId);
+    const empty = await request(app).get(`/api/v1/pipeline?ownerId=${katiaId}&stageId=${stages[0].id}`).set('Cookie', tiagoCookie);
+    expect(empty.status).toBe(200);
+    expect(empty.body.negociacoes).toEqual([]);
+
+    const edited = await request(app).put(`/api/v1/negociacoes/${negociacaoKatiaId}`).set('Cookie', tiagoCookie)
+      .send({ nome: 'Campanha revisada pela equipe', valor: 96000 });
+    expect(edited.status).toBe(200);
+    expect(edited.body.negociacao.owner_id).toBe(katiaId);
+    expect(edited.body.negociacao.nome).toBe('Campanha revisada pela equipe');
+    expect(edited.body.negociacao.historico.some((h: any) => h.usuario_id === tiagoId && h.acao === 'VALOR_ALTERADO')).toBe(true);
+    const moved = await request(app).patch(`/api/v1/negociacoes/${negociacaoKatiaId}/stage`).set('Cookie', tiagoCookie)
+      .send({ etapa_id: stages[2].id });
+    expect(moved.status).toBe(200);
+    const activity = await request(app).post(`/api/v1/negociacoes/${negociacaoKatiaId}/atividades`).set('Cookie', tiagoCookie)
+      .send({ tipo: 'NOTA', titulo: 'Revisão colaborativa' });
+    expect(activity.status).toBe(201);
+    expect((await request(app).put(`/api/v1/negociacoes/${negociacaoKatiaId}`).send({ nome: 'Sem sessão' })).status).toBe(401);
+
+    const inbound = await request(app).get('/api/v1/playbook-inbound').set('Cookie', tiagoCookie);
+    const block = inbound.body.secoes[0].blocos[0];
+    const savedBlock = await request(app).put(`/api/v1/playbook-inbound/${block.id}`).set('Cookie', tiagoCookie)
+      .send({ titulo: block.titulo, conteudo: block.conteudo });
+    expect(savedBlock.status).toBe(200);
+  });
+
+  it('Referência Inbound: edições compartilhadas persistentes por campo, validação e preservação do conteúdo anterior', async () => {
+    const before = await request(app).get('/api/v1/playbook-inbound').set('Cookie', tiagoCookie);
+    const legacyCount = before.body.secoes.reduce((count: number, section: any) => count + section.blocos.length, 0);
+    const body = { titulo: 'Origem estrutural', conteudo: 'Texto compartilhado de teste com **destaque**.' };
+    const anonymous = await request(app).put('/api/v1/playbook-inbound/reference/s1.origin').send(body);
+    expect(anonymous.status).toBe(401);
+    const created = await request(app).put('/api/v1/playbook-inbound/reference/s1.origin').set('Cookie', tiagoCookie).send(body);
+    expect(created.status).toBe(200);
+    const changed = await request(app).put('/api/v1/playbook-inbound/reference/s1.origin').set('Cookie', gestorCookie)
+      .send({ ...body, conteudo: 'Texto revisado pela gestão.' });
+    expect(changed.status).toBe(200);
+    expect(changed.body.bloco.id).toBe(created.body.bloco.id);
+    const another = await request(app).put('/api/v1/playbook-inbound/reference/s6.email').set('Cookie', tiagoCookie)
+      .send({ titulo: 'Template de e-mail', conteudo: 'Olá, [Nome do Decisor]. Próxima reunião confirmada.' });
+    expect(another.status).toBe(200);
+    const read = await request(app).get('/api/v1/playbook-inbound').set('Cookie', tiagoCookie);
+    expect(read.body.reference_overrides['s1.origin']).toBe('Texto revisado pela gestão.');
+    expect(read.body.reference_overrides['s6.email']).toContain('[Nome do Decisor]');
+    expect(read.body.secoes.reduce((count: number, section: any) => count + section.blocos.length, 0)).toBe(legacyCount);
+    const invalidKey = await request(app).put('/api/v1/playbook-inbound/reference/s8.invalid').set('Cookie', tiagoCookie).send(body);
+    expect(invalidKey.status).toBe(400);
+    const invalidBody = await request(app).put('/api/v1/playbook-inbound/reference/s1.origin').set('Cookie', tiagoCookie)
+      .send({ ...body, role: 'GESTOR' });
+    expect(invalidBody.status).toBe(400);
+    const oversized = await request(app).put('/api/v1/playbook-inbound/reference/s1.origin').set('Cookie', tiagoCookie)
+      .send({ ...body, conteudo: 'a'.repeat(25001) });
+    expect(oversized.status).toBe(400);
+  });
+
+  it('Gestão de usuários: editar, proteger o gestor e revogar acesso, sessões e convites', async () => {
+    const denied = await request(app).post('/api/v1/auth/forgot-password').set('Cookie', tiagoCookie)
+      .send({ email: 'katia.gebran@questcomunicacao.com.br' });
+    expect(denied.status).toBe(403);
+    const edit = await request(app).put(`/api/v1/equipe/${katiaId}`).set('Cookie', gestorCookie)
+      .send({ name: 'Katia Gebran', email: 'katia.gebran@questcomunicacao.com.br', cargo: 'Comercial Advertising' });
+    expect(edit.status).toBe(200);
+    const selfDemotion = await request(app).put(`/api/v1/equipe/${gestorId}`).set('Cookie', gestorCookie).send({ role: 'VENDEDOR' });
+    expect(selfDemotion.status).toBe(400);
+    const selfRemoval = await request(app).patch(`/api/v1/equipe/${gestorId}/status`).set('Cookie', gestorCookie).send({ active: false });
+    expect(selfRemoval.status).toBe(400);
+    const invitation = await request(app).post('/api/v1/auth/forgot-password').set('Cookie', gestorCookie)
+      .send({ email: 'katia.gebran@questcomunicacao.com.br' });
+    expect(invitation.body.resetTokenForSetup).toBeTruthy();
+    const removal = await request(app).patch(`/api/v1/equipe/${katiaId}/status`).set('Cookie', gestorCookie).send({ active: false });
+    expect(removal.status).toBe(200);
+    expect((await request(app).get('/api/v1/pipeline').set('Cookie', katiaCookie)).status).toBe(401);
+    const reset = await request(app).post('/api/v1/auth/reset-password')
+      .send({ token: invitation.body.resetTokenForSetup, newPassword: 'NovaSenhaTeste2026!' });
+    expect(reset.status).toBe(400);
+    const preserved = await request(app).get(`/api/v1/negociacoes/${negociacaoKatiaId}`).set('Cookie', tiagoCookie);
+    expect(preserved.status).toBe(200);
   });
 
   it('VULN-6: deve aplicar headers de segurança estritos (CSP, X-Frame-Options: DENY, HSTS, X-Content-Type-Options)', async () => {

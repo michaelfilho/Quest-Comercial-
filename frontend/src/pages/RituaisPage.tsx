@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { formatBRL, formatDateTimeBR } from '../lib/utils';
+import { RituaisGuide } from '../components/rituais/RituaisGuide';
 
 export const RituaisPage: React.FC = () => {
   const [data, setData] = useState<any>(null);
@@ -65,6 +66,11 @@ export const RituaisPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <RituaisGuide />
+      <div className="pt-6 border-t border-zinc-200">
+        <h2 className="text-xl font-bold text-[#111111]">Acompanhamento e execuções</h2>
+        <p className="text-sm text-zinc-500 mt-1">Consulte os alertas da sua operação e registre a realização dos rituais abaixo.</p>
+      </div>
       {/* Painel de Alertas Determinísticos Processados no Backend (Seção 11) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Regra de Ouro 12h */}
@@ -171,11 +177,6 @@ export const RituaisPage: React.FC = () => {
                 <span className="text-[11px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-[#FF5A00]/15 text-[#FF5A00]">
                   {ritual.frequencia} • {ritual.horario_padrao || 'Horário flexível'}
                 </span>
-                {ritual.regras_alerta && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-100 text-[#111111]">
-                    Regra Backend: {ritual.regras_alerta}
-                  </span>
-                )}
               </div>
 
               <h3 className="text-base font-extrabold text-[#111111] mt-3">{ritual.nome}</h3>

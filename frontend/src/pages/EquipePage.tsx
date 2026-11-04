@@ -14,12 +14,16 @@ import {
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { api } from '../services/api';
 import { formatBRL, formatPct, getInitials } from '../lib/utils';
+import { ConfirmModal } from '../components/ui/ConfirmModal';
 
 export const EquipePage: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [selectedDetail, setSelectedDetail] = useState<any>(null);
   const [createModal, setCreateModal] = useState(false);
   const [editMember, setEditMember] = useState<any>(null);
+  const [removeMember, setRemoveMember] = useState<any>(null);
+  const [error, setError] = useState('');
+  const invitationUrl = (token: string) => `${window.location.origin}${window.location.pathname.replace(/\/equipe\/?$/, '/login')}#convite=${encodeURIComponent(token)}`;
   const [inviteInfo, setInviteInfo] = useState<{
     name: string;
     email: string;
@@ -38,8 +42,8 @@ export const EquipePage: React.FC = () => {
     try {
       const res = await api.get('/equipe');
       setData(res);
-    } catch {
-      // ignore
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível carregar a equipe.');
     }
   }, []);
 
@@ -54,52 +58,79 @@ export const EquipePage: React.FC = () => {
 
   const handleCreateVendedor = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await api.post('/equipe', {
-      name: form.name,
-      email: form.email,
-      cargo: form.cargo,
-      role: form.role,
-      meta_mensal_opcional: form.meta_mensal_opcional
-        ? Number(form.meta_mensal_opcional)
-        : undefined,
-    });
-    setCreateModal(false);
-    if (res.convite?.invite_token) {
-      setInviteInfo({
+    setError('');
+    try {
+      const res = await api.post('/equipe', {
         name: form.name,
         email: form.email,
-        token: res.convite.invite_token,
+        cargo: form.cargo,
+        role: form.role,
+        meta_mensal_opcional: form.meta_mensal_opcional
+          ? Number(form.meta_mensal_opcional)
+          : undefined,
       });
-    }
-    setForm({
-      name: '',
-      email: '',
-      cargo: 'Vendas Inbound / Consultoria',
-      role: 'VENDEDOR',
-      meta_mensal_opcional: '',
-    });
-    await loadEquipe();
+      setCreateModal(false);
+      if (res.convite?.invite_token) {
+        setInviteInfo({
+          name: form.name,
+          email: form.email,
+          token: res.convite.invite_token,
+        });
+      }
+      setForm({
+        name: '',
+        email: '',
+        cargo: 'Vendas Inbound / Consultoria',
+        role: 'VENDEDOR',
+        meta_mensal_opcional: '',
+      });
+      await loadEquipe();
+    } catch (err: any) { setError(err.message || 'Não foi possível cadastrar o usuário.'); }
   };
 
   const handleUpdateVendedor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editMember) return;
-    await api.put(`/equipe/${editMember.id}`, {
-      name: editMember.nome,
-      email: editMember.email,
-      cargo: editMember.cargo,
-      role: editMember.role,
-    });
-    setEditMember(null);
-    await loadEquipe();
+    setError('');
+    try {
+      await api.put(`/equipe/${editMember.id}`, {
+        name: editMember.nome,
+        email: editMember.email,
+        cargo: editMember.cargo,
+        role: editMember.role,
+      });
+      setEditMember(null);
+      await loadEquipe();
+    } catch (err: any) { setError(err.message || 'Não foi possível editar o usuário.'); }
   };
 
   const handleToggleStatus = async (member: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    await api.patch(`/equipe/${member.id}/status`, {
-      active: !member.active,
-    });
-    await loadEquipe();
+    if (member.active) { setRemoveMember(member); return; }
+    try {
+      await api.patch(`/equipe/${member.id}/status`, {
+        active: !member.active,
+      });
+      await loadEquipe();
+    } catch (err: any) { setError(err.message || 'Não foi possível alterar o acesso.'); }
+  };
+
+  const handleRemove = async () => {
+    if (!removeMember) return;
+    try {
+      await api.patch(`/equipe/${removeMember.id}/status`, { active: false });
+      setRemoveMember(null);
+      setSelectedDetail(null);
+      await loadEquipe();
+    } catch (err: any) { setRemoveMember(null); setError(err.message || 'Não foi possível remover o acesso.'); }
+  };
+
+  const handleInvite = async (member: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await api.post('/auth/forgot-password', { email: member.email });
+      if (res.resetTokenForSetup) setInviteInfo({ name: member.nome, email: member.email, token: res.resetTokenForSetup });
+    } catch (err: any) { setError(err.message || 'Não foi possível gerar o convite.'); }
   };
 
   const resumo = data?.resumo || {
@@ -111,6 +142,10 @@ export const EquipePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {error && <div role="alert" className="relative z-[60] rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">{error}</div>}
+      <ConfirmModal open={Boolean(removeMember)} title="Remover acesso do usuário" confirmLabel="Remover acesso"
+        description={`Remover o acesso de ${removeMember?.nome || ''}? As sessões serão encerradas e o histórico comercial será preservado.`}
+        onConfirm={handleRemove} onCancel={() => setRemoveMember(null)} />
       {/* Cabeçalho e Botão Cadastrar Vendedor */}
       <div className="bg-white rounded-2xl border border-zinc-200/80 p-6 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -131,7 +166,7 @@ export const EquipePage: React.FC = () => {
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-[#FF5A00] hover:bg-[#E04F00] shadow-sm"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Cadastrar Vendedor</span>
+          <span>Cadastrar Usuário</span>
         </button>
       </div>
 
@@ -146,10 +181,9 @@ export const EquipePage: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-emerald-700">
-              Token único de criação de senha (válido por 72h):{' '}
-              <code className="px-2 py-0.5 rounded bg-white font-mono text-[#111111] border border-emerald-300">
-                {inviteInfo.token}
-              </code>
+              Compartilhe este link de uso único somente com o integrante para definir a senha:
+              <input aria-label="Link de definição de senha" readOnly value={invitationUrl(inviteInfo.token)}
+                onFocus={(e) => e.target.select()} className="mt-2 w-full rounded border border-emerald-300 p-2 text-xs text-[#111111]" />
             </p>
           </div>
           <button
@@ -263,10 +297,12 @@ export const EquipePage: React.FC = () => {
                         ? 'text-emerald-600 hover:bg-emerald-50'
                         : 'text-red-600 hover:bg-red-50'
                     }`}
-                    title={member.active ? 'Desativar Conta' : 'Reativar Conta'}
+                    title={member.active ? 'Remover acesso' : 'Reativar Conta'}
                   >
                     <Power className="w-3.5 h-3.5" />
                   </button>
+                  {member.active && <button type="button" onClick={(e) => handleInvite(member, e)} title="Gerar convite de senha"
+                    className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100"><KeyRound className="w-3.5 h-3.5" /></button>}
                 </div>
               </div>
 
@@ -510,6 +546,20 @@ export const EquipePage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handleUpdateVendedor} className="mt-4 space-y-3.5">
+              <div>
+                <label htmlFor="edit-email" className="block text-xs font-semibold mb-1">E-mail</label>
+                <input id="edit-email" type="email" required value={editMember.email}
+                  onChange={(e) => setEditMember({ ...editMember, email: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-300" />
+              </div>
+              <div>
+                <label htmlFor="edit-role" className="block text-xs font-semibold mb-1">Perfil</label>
+                <select id="edit-role" value={editMember.role}
+                  onChange={(e) => setEditMember({ ...editMember, role: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-300">
+                  <option value="VENDEDOR">Vendedor</option><option value="GESTOR">Gestor</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-xs font-semibold mb-1">Nome</label>
                 <input

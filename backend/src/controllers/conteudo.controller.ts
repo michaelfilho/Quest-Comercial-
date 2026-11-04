@@ -6,11 +6,21 @@ import {
   conversaCreateSchema,
   mensagemSendSchema,
   playbookConteudoUpdateSchema,
+  referenceKeySchema,
+  referenceTextSchema,
   ritualExecucaoCreateSchema,
   webhookInboundSchema,
 } from '../validators/conteudo.validator.js';
 
 export const conteudoController = {
+  async saveReferenceText(req: Request, res: Response, next: NextFunction) {
+    try {
+      const key = referenceKeySchema.parse(req.params.key);
+      const parsed = referenceTextSchema.parse(req.body);
+      const bloco = await conteudoService.saveReferenceText(req.user!, key, parsed, req.ip);
+      res.json({ bloco });
+    } catch (err) { next(err); }
+  },
   async getRituais(req: Request, res: Response, next: NextFunction) {
     try {
       const data = await conteudoService.getRituaisAndAlerts(req.user!);

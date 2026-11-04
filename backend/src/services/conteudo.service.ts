@@ -10,6 +10,22 @@ function toNum(v: any): number {
 }
 
 export const conteudoService = {
+  async saveReferenceText(user: AuthenticatedUser, key: string, data: { titulo: string; conteudo: string }, ipAddress?: string) {
+    // Identidade determinística por campo: edições paralelas de campos distintos não se sobrescrevem.
+    const hash = crypto.createHash('sha256').update(`quest-inbound-reference:${key}`).digest('hex');
+    const id = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+    const section = Number(key[1]);
+    const result = await db.queryOne(
+      `INSERT INTO playbook_conteudos
+        (id, secao_numero, secao_slug, secao_titulo, categoria, titulo, conteudo, copiavel, oficial_importado, ordem, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true, true, 1, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE SET titulo = EXCLUDED.titulo, conteudo = EXCLUDED.conteudo, updated_at = CURRENT_TIMESTAMP
+       RETURNING id, titulo, conteudo, updated_at`,
+      [id, section, `reference-${section}`, `Seção ${section}`, `REFERENCE:${key}`, data.titulo, data.conteudo]
+    );
+    await recordAuditLog({ usuarioId: user.id, acao: 'PLAYBOOK_INBOUND_ATUALIZADO', entidade: 'playbook_conteudos', entidadeId: id, detalhes: `Texto ${key} atualizado por ${user.name}.`, ipAddress });
+    return result;
+  },
   async getRituaisAndAlerts(user: AuthenticatedUser) {
     const { rows: rituais } = await db.query<any>(
       `SELECT * FROM rituais WHERE ativo = true ORDER BY frequencia ASC, ordem ASC`
@@ -265,7 +281,12 @@ export const conteudoService = {
       }
     >();
 
+    const referenceOverrides: Record<string, string> = {};
     for (const row of rows) {
+      if (row.categoria.startsWith('REFERENCE:')) {
+        referenceOverrides[row.categoria.slice('REFERENCE:'.length)] = row.conteudo;
+        continue;
+      }
       if (!sectionsMap.has(row.secao_numero)) {
         sectionsMap.set(row.secao_numero, {
           secao_numero: row.secao_numero,
@@ -279,6 +300,7 @@ export const conteudoService = {
 
     return {
       documento_referencia: 'Playbook Inbound Rev03 — Quest Comunicação Total',
+      reference_overrides: referenceOverrides,
       secoes: Array.from(sectionsMap.values()),
       total_blocos: rows.length,
     };
@@ -290,13 +312,6 @@ export const conteudoService = {
     data: any,
     ipAddress?: string
   ) {
-    if (user.role !== 'GESTOR') {
-      throw new AppError(
-        'Apenas gestores podem atualizar o documento-mestre do Playbook Inbound.',
-        403,
-        'FORBIDDEN'
-      );
-    }
 
     const existing = await db.queryOne(`SELECT * FROM playbook_conteudos WHERE id = $1`, [id]);
     if (!existing) {

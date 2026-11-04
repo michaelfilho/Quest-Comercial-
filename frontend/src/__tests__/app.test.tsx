@@ -70,7 +70,9 @@ describe('Playbook de Vendas Quest — Testes Unitários e de Interface (Fronten
       </AuthContext.Provider>
     );
 
-    expect(await screen.findByText(/André Maciel/i)).toBeInTheDocument();
+    expect(screen.queryByText(/André Maciel/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/1º Acesso/i)).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
     expect(screen.getByText('Acessar Plataforma')).toBeInTheDocument();
     expect(screen.getByLabelText('E-mail')).toBeInTheDocument();
     expect(screen.getByLabelText('Senha')).toBeInTheDocument();

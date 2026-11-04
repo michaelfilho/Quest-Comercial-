@@ -11,10 +11,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
+import { InboundReference } from '../components/inbound/InboundReference';
 
-export const PlaybookInboundPage: React.FC = () => {
+const LegacyPlaybook: React.FC = () => {
   const { user } = useAuth();
-  const isGestor = user?.role === 'GESTOR';
+  const canEdit = Boolean(user);
 
   const [secoes, setSecoes] = useState<any[]>([]);
   const [activeSlug, setActiveSlug] = useState<string>('visao-geral');
@@ -24,14 +25,17 @@ export const PlaybookInboundPage: React.FC = () => {
   const loadPlaybook = useCallback(async () => {
     try {
       const res = await api.get('/playbook-inbound');
-      setSecoes(res.secoes || []);
+      // Preserva conteúdos já escritos pela equipe, sem repetir os placeholders antigos.
+      setSecoes((res.secoes || []).map((section: any) => ({ ...section,
+        blocos: section.blocos.filter((block: any) => !/^\[(?:Estrutura oficial|Insira aqui|Etapa \d)/.test(block.conteudo))
+      })).filter((section: any) => section.blocos.length > 0));
       if (res.secoes?.length > 0 && !activeSlug) {
         setActiveSlug(res.secoes[0].secao_slug);
       }
     } catch {
       // ignore
     }
-  }, [activeSlug]);
+  }, []);
 
   useEffect(() => {
     loadPlaybook();
@@ -92,7 +96,10 @@ export const PlaybookInboundPage: React.FC = () => {
     }
   };
 
+  if (secoes.length === 0) return null;
+
   return (
+    <details className="mt-8 border-t border-zinc-200 pt-6"><summary className="cursor-pointer font-semibold text-sm mb-5">Conteúdo já cadastrado pela equipe</summary>
     <div className="flex flex-col lg:flex-row gap-6 items-start">
       {/* Navegação Interna Fixa com Scroll-Spy (7 Seções) */}
       <aside className="w-full lg:w-64 xl:w-72 shrink-0 lg:sticky lg:top-24 bg-white rounded-2xl border border-zinc-200 p-4 shadow-card">
@@ -185,7 +192,7 @@ export const PlaybookInboundPage: React.FC = () => {
                         </button>
                       )}
 
-                      {isGestor && (
+                      {canEdit && (
                         <button
                           type="button"
                           onClick={() => setEditingBlock({ ...bloco })}
@@ -231,8 +238,8 @@ export const PlaybookInboundPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Modal de Edição / Importação Literal do Playbook Inbound Rev03 (Gestor) */}
-      {editingBlock && isGestor && (
+      {/* Modal de Edição / Importação Literal do Playbook Inbound Rev03 (Equipe) */}
+      {editingBlock && canEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-2xl border border-zinc-200 max-w-2xl w-full p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
@@ -320,7 +327,9 @@ export const PlaybookInboundPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </div></details>
   );
 };
+
+export const PlaybookInboundPage: React.FC = () => <div><InboundReference /><LegacyPlaybook /></div>;
 

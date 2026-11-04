@@ -6,5 +6,4 @@ export * from '../pages/ResultadosPage';
 export * from '../pages/EquipePage';
 export * from '../pages/RituaisPage';
 export * from '../pages/PlaybookInboundPage';
-export * from '../pages/AssistenteIaPage';
 

@@ -25,6 +25,12 @@ export const playbookConteudoUpdateSchema = z
   })
   .strict();
 
+export const referenceKeySchema = z.string().regex(/^s[1-7]\.[a-z0-9.-]{1,90}$/);
+export const referenceTextSchema = z.object({
+  titulo: z.string().trim().min(2).max(200),
+  conteudo: z.string().trim().min(1).max(25000),
+}).strict();
+
 export const conversaCreateSchema = z
   .object({
     titulo: z.string().trim().min(2).max(120).default('Nova consulta comercial'),

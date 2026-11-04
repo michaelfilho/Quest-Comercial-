@@ -8,7 +8,6 @@ import {
   Users,
   CalendarCheck2,
   BookOpen,
-  Bot,
   KeyRound,
   LogOut,
   Menu,
@@ -51,10 +50,6 @@ const PAGE_METADATA: Record<string, { title: string; context: string }> = {
     title: 'Playbook Inbound',
     context: 'Documentação comercial interativa de 7 seções — Playbook Inbound Rev03',
   },
-  '/assistente': {
-    title: 'Assistente Comercial Quest',
-    context: 'Inteligência artificial integrada ao Playbook e dados comerciais autorizados',
-  },
 };
 
 export const AppLayout: React.FC = () => {
@@ -72,11 +67,10 @@ export const AppLayout: React.FC = () => {
     { to: '/equipe', label: 'Equipe', icon: Users, gestorOnly: true },
     { to: '/rituais', label: 'Rotinas e Rituais', icon: CalendarCheck2, gestorOnly: false },
     { to: '/playbook-inbound', label: 'Playbook Inbound', icon: BookOpen, gestorOnly: false },
-    { to: '/assistente', label: 'Assistente IA', icon: Bot, gestorOnly: false },
   ].filter((item) => !item.gestorOnly || user?.role === 'GESTOR');
 
   const currentMeta = PAGE_METADATA[location.pathname] || {
-    title: 'Playbook de Vendas Quest',
+    title: 'Quest Seller',
     context: 'Sistema Comercial — Quest Comunicação Total',
   };
 

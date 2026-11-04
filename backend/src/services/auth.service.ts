@@ -47,7 +47,7 @@ export const authService = {
 
     if (!user.password_hash) {
       throw new AppError(
-        'Conta pendente de ativação de senha. Utilize a opção "Esqueci minha senha / Primeiro acesso" para definir sua senha segura.',
+        'Conta pendente de ativação de senha. Solicite ao gestor um convite para definir sua senha segura.',
         403,
         'ACCOUNT_NEEDS_ACTIVATION'
       );
@@ -172,20 +172,13 @@ export const authService = {
       'Token de ativação/recuperação de senha gerado.'
     );
 
-    // 🔒 SEGURANÇA [VULN-1]: Jamais expor token de redefinição (PASSWORD_RESET) de conta já ativada na resposta HTTP,
-    // prevenindo Account Takeover (CWE-640). O token em resposta só é permitido no primeiro acesso (ACCOUNT_ACTIVATION) quando a conta ainda não possui senha e SMTP não está configurado.
-    const smtpConfigured = Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
-    const allowSetupTokenInResponse =
-      purpose === 'ACCOUNT_ACTIVATION' &&
-      !user.password_hash &&
-      !smtpConfigured;
-
+    // Rota protegida: apenas gestores autenticados recebem tokens.
     return {
       message:
         'Se o e-mail informado pertencer a uma conta ativa da Quest, as instruções de definição/recuperação de senha foram geradas.',
       purpose,
       expiresAt: expiresAt.toISOString(),
-      resetTokenForSetup: allowSetupTokenInResponse ? rawToken : null,
+      resetTokenForSetup: rawToken,
     };
   },
 

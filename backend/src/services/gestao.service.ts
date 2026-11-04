@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import { db } from '../config/database.js';
-import { env } from '../config/env.js';
 import { generateSecureToken, hashTokenSha256 } from '../config/security.js';
 import { AuthenticatedUser, recordAuditLog } from '../middlewares/auth.middleware.js';
 import { AppError } from '../middlewares/error.middleware.js';
@@ -1190,13 +1189,12 @@ export const gestaoService = {
       [newUserId]
     );
 
-    const smtpConfigured = Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
     return {
       usuario: createdUser,
       convite: {
         purpose: 'ACCOUNT_ACTIVATION',
         expires_at: expiresAt.toISOString(),
-        invite_token: !smtpConfigured ? rawInviteToken : null,
+        invite_token: rawInviteToken,
       },
     };
   },
@@ -1211,6 +1209,13 @@ export const gestaoService = {
       throw new AppError('Usuário não encontrado.', 404, 'USER_NOT_FOUND');
     }
 
+    if (targetId === user.id && data.role && data.role !== 'GESTOR') {
+      throw new AppError('Você não pode remover seu próprio perfil de gestor.', 400, 'SELF_DEMOTION');
+    }
+    if (data.email) {
+      const duplicate = await db.queryOne('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id <> $2', [data.email, targetId]);
+      if (duplicate) throw new AppError('Já existe um usuário com este e-mail.', 409, 'EMAIL_ALREADY_EXISTS');
+    }
     await db.query(
       `UPDATE users
        SET name = COALESCE($1, name),
@@ -1245,6 +1250,8 @@ export const gestaoService = {
     if (user.role !== 'GESTOR') {
       throw new AppError('Apenas gestores podem ativar ou desativar contas.', 403, 'FORBIDDEN');
     }
+    const existing = await db.queryOne('SELECT id FROM users WHERE id = $1', [targetId]);
+    if (!existing) throw new AppError('Usuário não encontrado.', 404, 'USER_NOT_FOUND');
     if (targetId === user.id && !active) {
       throw new AppError('Você não pode desativar sua própria conta de gestor.', 400, 'SELF_DEACTIVATION');
     }
@@ -1259,6 +1266,7 @@ export const gestaoService = {
           `UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL`,
           [targetId]
         );
+        await tx.query('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND used_at IS NULL', [targetId]);
       }
     });
 
