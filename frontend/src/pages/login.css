@@ -1,4 +1,4 @@
-.seller-login { display: grid; grid-template-columns: 53% 47%; min-height: 100svh; color: #111; }
+.seller-login { display: grid; grid-template-columns: 53% 47%; min-height: 100dvh; color: #111; }
 .seller-login-showcase { position: relative; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; overflow: hidden; padding: 48px clamp(36px, 3.35vw, 64px) 48px clamp(40px, 4.85vw, 90px); color: #f8fafc; background: radial-gradient(ellipse at 94% 18%, #86360045, transparent 34%), radial-gradient(ellipse at -5% 88%, #c5480059, transparent 25%), linear-gradient(125deg, #0c0e0f, #181819); isolation: isolate; }
 .seller-login-showcase::before { position: absolute; z-index: -1; content: ''; width: 670px; height: 670px; border: 1.5px solid #ff6900; border-radius: 50%; right: -35px; top: -255px; box-shadow: 8px 5px 45px #ff690048, inset -15px -5px 35px #ff690022; opacity: .7; mask-image: linear-gradient(140deg, transparent 48%, #000 80%); }
 .seller-login-showcase::after { position: absolute; z-index: -1; content: ''; width: 840px; height: 840px; bottom: -445px; left: -95px; border-radius: 50%; border: 1.5px solid #ff6900; box-shadow: -15px 6px 45px #ff690054; opacity: .9; mask-image: linear-gradient(35deg, #000 15%, transparent 60%); }
@@ -156,4 +156,87 @@
   .seller-login-form .seller-login-eye { right: 13px; }
   .seller-login-submit { min-height: 53px; font-size: 16px; }
   .seller-login-secure { font-size: 12px; margin-top: 21px; }
+}
+
+/* A altura disponível também define o espaço entre os blocos do login. */
+@media (min-width: 1000px) {
+  .seller-login-showcase { padding-block: clamp(20px, 4.8dvh, 48px); }
+  .seller-login-intro { margin-top: clamp(20px, 4.6dvh, 44px); }
+  .seller-login-intro h1 { font-size: clamp(28px, min(2.87vw, 5.1dvh), 52px); margin-top: clamp(14px, 2.3dvh, 22px); }
+  .seller-login-intro > p { margin-top: clamp(10px, 1.7dvh, 16px); }
+  .seller-login-demo { margin-top: clamp(24px, 5.9dvh, 56px); }
+  .seller-login-metric { height: clamp(112px, 19.1dvh, 180px); }
+  .seller-login-pipeline { margin-top: clamp(16px, 2.85dvh, 27px); padding-block: clamp(12px, 2.1dvh, 20px); }
+  .seller-login-stages { margin-top: clamp(10px, 1.8dvh, 17px); }
+  .seller-login-stage, .seller-login-stage:first-child { padding-block: clamp(8px, 1.7dvh, 16px); }
+  .seller-login-footer { margin-top: clamp(16px, 3.5dvh, 40px); }
+  .seller-login-auth { padding-block: clamp(16px, 4.5dvh, 50px); }
+}
+
+@media (min-width: 1000px) and (max-height: 800px) {
+  .seller-login-showcase { padding: 20px 34px; }
+  .seller-login-brand img { width: 40px; height: 44px; }
+  .seller-login-brand [aria-label="Quest Seller"] > div > div > span { font-size: 24px; }
+  .seller-login-brand [aria-label="Quest Seller"] > div > span { font-size: 14px; }
+  .seller-login-intro { margin-top: 22px; }
+  .seller-login-company { font-size: 12px; padding: 4px 10px; }
+  .seller-login-intro h1 { margin-top: 14px; }
+  .seller-login-intro > p { font-size: 15px; margin-top: 10px; }
+  .seller-login-demo { margin-top: clamp(20px, 4dvh, 32px); }
+  .seller-login-metric { height: clamp(108px, 19dvh, 150px); padding: 14px 18px; }
+  .seller-login-metric-heading > svg { width: 24px; height: 24px; }
+  .seller-login-metric-heading { gap: 12px; }
+  .seller-login-metric-heading h2 { font-size: 13px; }
+  .seller-login-sales-total { padding-left: 0; }
+  .seller-login-sales-total > strong { font-size: clamp(22px, 1.8vw, 29px); }
+  .seller-login-sales-total > span { font-size: 11px; padding: 2px 6px; }
+  .seller-login-chart { height: 52px; }
+  .seller-login-goal-total { font-size: 29px; padding-left: 36px; }
+  .seller-login-goal > p { font-size: 12px; margin-top: 8px; }
+  .seller-login-goal-track { height: 12px; margin-top: 7px; }
+  .seller-login-pipeline { margin-top: 16px; padding: 14px 18px; }
+  .seller-login-pipeline-heading svg { width: 24px; height: 24px; }
+  .seller-login-pipeline-heading h2, .seller-login-pipeline-heading > span { font-size: 12px; }
+  .seller-login-stages { margin-top: 12px; }
+  .seller-login-stage, .seller-login-stage:first-child { padding-block: 10px; }
+  .seller-login-stage > strong { font-size: 22px; margin-top: 3px; }
+  .seller-login-stage-track { height: 6px; margin-top: 5px; }
+  .seller-login-footer { font-size: 10px; margin-top: 20px; }
+  .seller-login-orbits { width: 220px; height: 200px; top: 25px; }
+}
+
+/* Em telas estreitas o formulário ocupa a primeira tela; a vitrine é decorativa. */
+@media (max-width: 999px) {
+  .seller-login { grid-template-rows: auto 1fr; }
+  .seller-login-showcase { padding: 18px 24px; }
+  .seller-login-intro, .seller-login-demo, .seller-login-footer { display: none; }
+  .seller-login-brand img { width: 37px; height: 44px; }
+  .seller-login-brand [aria-label="Quest Seller"] > div > div > span { font-size: 24px; }
+  .seller-login-brand [aria-label="Quest Seller"] > div > span { font-size: 14px; }
+  .seller-login-orbits { width: 125px; height: 125px; top: -30px; right: 14px; opacity: .35; }
+  .seller-login-auth { padding: 20px; }
+  .seller-login-card { max-width: 520px; }
+}
+
+@media (max-height: 800px) {
+  .seller-login-card { padding: 26px 30px; }
+  .seller-login-card .seller-login-header { margin-bottom: 20px; }
+  .seller-login-card .seller-login-welcome { font-size: clamp(23px, 2.35vw, 32px); }
+  .seller-login-card .seller-login-subtitle { font-size: 16px; }
+  .seller-login-form { gap: 18px; }
+  .seller-login-form label { font-size: 13px; margin-bottom: 7px; }
+  .seller-login-form .seller-login-password-heading { margin-bottom: 7px; }
+  .seller-login-form .seller-login-forgot { font-size: 12px; }
+  .seller-login-form input { height: 48px; font-size: 14px; }
+  .seller-login-submit { min-height: 52px; font-size: 16px; }
+  .seller-login-secure { margin-top: 18px; font-size: 13px; }
+}
+
+@media (max-width: 599px) and (max-height: 700px) {
+  .seller-login-showcase { padding-block: 12px; }
+  .seller-login-auth { padding: 16px; }
+  .seller-login-card { padding: 23px; }
+  .seller-login-form { gap: 16px; }
+  .seller-login-form input { height: 44px; }
+  .seller-login-submit { min-height: 48px; }
 }

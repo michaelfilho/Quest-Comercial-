@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { passwordSchema } from './password.validator.js';
 
 // 🔒 SEGURANÇA [VULN-5 / Lei 2 & Lei 3]: Schemas estritos (.strict()) e limites máximos (.max())
 export const metaCreateSchema = z
@@ -48,6 +49,7 @@ export const kpiMetaUpsertSchema = z
 
 export const vendedorCreateSchema = z
   .object({
+    password: passwordSchema,
     name: z.string().trim().min(2, 'Informe o nome completo.').max(140),
     email: z.string().trim().max(254).email('Informe um e-mail válido.'),
     cargo: z.string().trim().min(2, 'Informe o cargo comercial.').max(140),
@@ -59,6 +61,7 @@ export const vendedorCreateSchema = z
 
 export const vendedorUpdateSchema = z
   .object({
+    password: passwordSchema.optional(),
     name: z.string().trim().min(2).max(140).optional(),
     email: z.string().trim().max(254).email().optional(),
     cargo: z.string().trim().min(2).max(140).optional(),

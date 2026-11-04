@@ -63,3 +63,47 @@ test('Gestor edita usuários e confirma remoção de acesso', async ({ page }) =
   await page.getByRole('dialog', { name: 'Remover acesso do usuário' }).getByRole('button', { name: 'Remover acesso', exact: true }).click();
   await expect(page.getByTitle('Reativar Conta')).toBeVisible();
 });
+
+test('Gestor cadastra e redefine a senha diretamente, sem convite por link', async ({ page }) => {
+  let member: any = null;
+  let created: any;
+  let updated: any;
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    let body: any = {};
+    if (path.endsWith('/auth/me')) body = { user: gestor };
+    if (path.endsWith('/equipe')) {
+      if (route.request().method() === 'POST') {
+        created = route.request().postDataJSON();
+        const { password, ...publicFields } = created;
+        member = { ...publicFields, id: 'novo', nome: created.name, active: true, activated: true };
+        body = { usuario: member };
+      } else body = { integrantes: member ? [member] : [] };
+    }
+    if (path.endsWith('/equipe/novo') && route.request().method() === 'PUT') {
+      updated = route.request().postDataJSON();
+      body = { usuario: member };
+    }
+    await route.fulfill({ json: body });
+  });
+  await page.goto('/equipe');
+  await page.getByRole('button', { name: 'Cadastrar Usuário', exact: true }).click();
+  const createDialog = page.getByRole('dialog', { name: 'Cadastrar usuário', exact: true });
+  await createDialog.getByLabel('Nome Completo *', { exact: true }).fill('Novo Consultor');
+  await createDialog.getByLabel('E-mail Corporativo *', { exact: true }).fill('novo@example.test');
+  await createDialog.getByLabel('Senha de acesso *', { exact: true }).fill('SenhaInicial2026!Teste');
+  await expect(createDialog.getByLabel('Senha de acesso *', { exact: true })).toHaveAttribute('type', 'password');
+  await createDialog.getByRole('button', { name: 'Cadastrar Usuário', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Usuário cadastrado com sucesso');
+  expect(created.password).toBe('SenhaInicial2026!Teste');
+  await expect(page.getByLabel('Link de definição de senha')).toHaveCount(0);
+  await expect(page.getByTitle('Gerar convite de senha')).toHaveCount(0);
+  await page.getByTitle('Definir senha', { exact: true }).click();
+  const editDialog = page.getByRole('dialog', { name: 'Editar usuário', exact: true });
+  await editDialog.getByLabel('Nova senha (opcional)', { exact: true }).fill('SenhaRevisada2026!Teste');
+  await editDialog.getByRole('button', { name: 'Salvar Alterações', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('senha definida com sucesso');
+  expect(updated.password).toBe('SenhaRevisada2026!Teste');
+  await page.getByTitle('Definir senha', { exact: true }).click();
+  await expect(editDialog.getByLabel('Nova senha (opcional)', { exact: true })).toHaveValue('');
+});

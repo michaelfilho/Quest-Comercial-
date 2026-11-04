@@ -217,7 +217,7 @@ export const LoginPage: React.FC = () => {
                 </div>
               )}
 
-              <p className="text-sm text-[#333333]">Entre em contato com André ou com a gestão comercial para receber um convite de redefinição de senha.</p>
+              <p className="text-sm text-[#333333]">Entre em contato com André ou com a gestão comercial para solicitar a redefinição da sua senha.</p>
             </>
           )}
 

@@ -47,7 +47,7 @@ export const authService = {
 
     if (!user.password_hash) {
       throw new AppError(
-        'Conta pendente de ativação de senha. Solicite ao gestor um convite para definir sua senha segura.',
+        'Conta pendente de ativação de senha. Solicite ao gestor a definição da sua senha de acesso.',
         403,
         'ACCOUNT_NEEDS_ACTIVATION'
       );

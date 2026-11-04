@@ -141,22 +141,32 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
       .set('Cookie', tiagoCookie);
     expect(forbiddenEquipe.status).toBe(403);
 
-    // Gestor acessa Equipe e cadastra novo vendedor com convite seguro (sem senha previsível)
+    // Gestor cadastra novo vendedor com senha definida, sem gerar convite.
     const createVendedor = await request(app)
       .post('/api/v1/equipe')
       .set('Cookie', gestorCookie)
       .send({
         name: 'Lucas Mendes',
         email: 'lucas.mendes@questcomunicacao.com.br',
+        password: 'LucasAcesso2026!Teste',
         cargo: 'Vendas Outbound',
         role: 'VENDEDOR',
         meta_mensal_opcional: 45000,
       });
     expect(createVendedor.status).toBe(201);
     expect(createVendedor.body.usuario.email).toBe('lucas.mendes@questcomunicacao.com.br');
-    expect(createVendedor.body.convite.purpose).toBe('ACCOUNT_ACTIVATION');
+    expect(createVendedor.body.convite).toBeUndefined();
+    expect(createVendedor.body.usuario.password_hash).toBeUndefined();
+    expect(createVendedor.body.usuario.password).toBeUndefined();
 
     const newSellerId = createVendedor.body.usuario.id;
+
+    const login = await request(app).post('/api/v1/auth/login').send({
+      email: 'lucas.mendes@questcomunicacao.com.br', password: 'LucasAcesso2026!Teste',
+    });
+    expect(login.status).toBe(200);
+    const tokens = await db.query('SELECT id FROM password_reset_tokens WHERE user_id = $1', [newSellerId]);
+    expect(tokens.rows).toHaveLength(0);
 
     // Desativa e reativa conta
     const deactivateRes = await request(app)
@@ -616,6 +626,44 @@ describe('Playbook de Vendas Quest — Testes Completos de Integração Backend 
     const oversized = await request(app).put('/api/v1/playbook-inbound/reference/s1.origin').set('Cookie', tiagoCookie)
       .send({ ...body, conteudo: 'a'.repeat(25001) });
     expect(oversized.status).toBe(400);
+  });
+
+  it('Gestor define senhas: hash, validação, permissões, invalidação de sessões e convites', async () => {
+    const seller = await db.queryOne('SELECT id, password_hash FROM users WHERE email = $1', ['lucas.mendes@questcomunicacao.com.br']);
+    expect(seller!.password_hash).toMatch(/^\$argon2id\$/);
+    const originalHash = seller!.password_hash;
+    const beforeLogin = await request(app).post('/api/v1/auth/login')
+      .send({ email: 'lucas.mendes@questcomunicacao.com.br', password: 'LucasAcesso2026!Teste' });
+    expect(beforeLogin.status).toBe(200);
+    const oldCookie = beforeLogin.headers['set-cookie'][0].split(';')[0];
+    const metadataEdit = await request(app).put(`/api/v1/equipe/${seller!.id}`).set('Cookie', gestorCookie).send({ cargo: 'Comercial Outbound' });
+    expect(metadataEdit.status).toBe(200);
+    expect((await db.queryOne('SELECT password_hash FROM users WHERE id = $1', [seller!.id]))!.password_hash).toBe(originalHash);
+    const forbidden = await request(app).put(`/api/v1/equipe/${seller!.id}`).set('Cookie', tiagoCookie)
+      .send({ password: 'OutraSenha2026!Teste' });
+    expect(forbidden.status).toBe(403);
+    const weak = await request(app).put(`/api/v1/equipe/${seller!.id}`).set('Cookie', gestorCookie).send({ password: '12345678' });
+    expect(weak.status).toBe(400);
+    const missingPassword = await request(app).post('/api/v1/equipe').set('Cookie', gestorCookie)
+      .send({ name: 'Sem Senha', email: 'sem.senha@example.test', cargo: 'Comercial' });
+    expect(missingPassword.status).toBe(400);
+    const invitation = await request(app).post('/api/v1/auth/forgot-password').set('Cookie', gestorCookie)
+      .send({ email: 'lucas.mendes@questcomunicacao.com.br' });
+    expect(invitation.body.resetTokenForSetup).toBeTruthy();
+    const reset = await request(app).put(`/api/v1/equipe/${seller!.id}`).set('Cookie', gestorCookie).send({ password: 'LucasNova2026!Teste' });
+    expect(reset.status).toBe(200);
+    expect(reset.body.usuario.activated).toBe(true);
+    expect(reset.body.usuario.password_hash).toBeUndefined();
+    expect(reset.body.usuario.password).toBeUndefined();
+    expect((await request(app).get('/api/v1/auth/me').set('Cookie', oldCookie)).status).toBe(401);
+    expect((await request(app).post('/api/v1/auth/login').send({ email: 'lucas.mendes@questcomunicacao.com.br', password: 'LucasAcesso2026!Teste' })).status).toBe(401);
+    expect((await request(app).post('/api/v1/auth/login').send({ email: 'lucas.mendes@questcomunicacao.com.br', password: 'LucasNova2026!Teste' })).status).toBe(200);
+    expect((await request(app).post('/api/v1/auth/reset-password')
+      .send({ token: invitation.body.resetTokenForSetup, newPassword: 'ConviteAntigo2026!Teste' })).status).toBe(400);
+    const pending = await db.queryOne('SELECT id FROM users WHERE email = $1', ['debora.nigro@questcomunicacao.com.br']);
+    const activate = await request(app).put(`/api/v1/equipe/${pending!.id}`).set('Cookie', gestorCookie).send({ password: 'DeboraAcesso2026!Teste' });
+    expect(activate.status).toBe(200);
+    expect((await request(app).post('/api/v1/auth/login').send({ email: 'debora.nigro@questcomunicacao.com.br', password: 'DeboraAcesso2026!Teste' })).status).toBe(200);
   });
 
   it('Gestão de usuários: editar, proteger o gestor e revogar acesso, sessões e convites', async () => {

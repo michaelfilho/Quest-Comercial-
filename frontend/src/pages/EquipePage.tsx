@@ -15,24 +15,24 @@ import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { api } from '../services/api';
 import { formatBRL, formatPct, getInitials } from '../lib/utils';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { UserPasswordField } from '../components/ui/UserPasswordField';
+import { useAuth } from '../hooks/useAuth';
 
 export const EquipePage: React.FC = () => {
+  const { user, refreshUser } = useAuth();
   const [data, setData] = useState<any>(null);
   const [selectedDetail, setSelectedDetail] = useState<any>(null);
   const [createModal, setCreateModal] = useState(false);
   const [editMember, setEditMember] = useState<any>(null);
   const [removeMember, setRemoveMember] = useState<any>(null);
   const [error, setError] = useState('');
-  const invitationUrl = (token: string) => `${window.location.origin}${window.location.pathname.replace(/\/equipe\/?$/, '/login')}#convite=${encodeURIComponent(token)}`;
-  const [inviteInfo, setInviteInfo] = useState<{
-    name: string;
-    email: string;
-    token: string;
-  } | null>(null);
+  const [notice, setNotice] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
     email: '',
+    password: '',
     cargo: 'Vendas Inbound / Consultoria',
     role: 'VENDEDOR',
     meta_mensal_opcional: '',
@@ -58,11 +58,12 @@ export const EquipePage: React.FC = () => {
 
   const handleCreateVendedor = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError(''); setSaving(true);
     try {
-      const res = await api.post('/equipe', {
+      await api.post('/equipe', {
         name: form.name,
         email: form.email,
+        password: form.password,
         cargo: form.cargo,
         role: form.role,
         meta_mensal_opcional: form.meta_mensal_opcional
@@ -70,38 +71,37 @@ export const EquipePage: React.FC = () => {
           : undefined,
       });
       setCreateModal(false);
-      if (res.convite?.invite_token) {
-        setInviteInfo({
-          name: form.name,
-          email: form.email,
-          token: res.convite.invite_token,
-        });
-      }
+      setNotice('Usuário cadastrado com sucesso. O acesso já está disponível com a senha definida.');
       setForm({
         name: '',
         email: '',
+        password: '',
         cargo: 'Vendas Inbound / Consultoria',
         role: 'VENDEDOR',
         meta_mensal_opcional: '',
       });
       await loadEquipe();
-    } catch (err: any) { setError(err.message || 'Não foi possível cadastrar o usuário.'); }
+    } catch (err: any) { setError(err.message || 'Não foi possível cadastrar o usuário.'); } finally { setSaving(false); }
   };
 
   const handleUpdateVendedor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editMember) return;
-    setError('');
+    const ownPasswordChanged = Boolean(editMember.password) && editMember.id === user?.id;
+    setError(''); setSaving(true);
     try {
       await api.put(`/equipe/${editMember.id}`, {
         name: editMember.nome,
         email: editMember.email,
         cargo: editMember.cargo,
         role: editMember.role,
+        ...(editMember.password ? { password: editMember.password } : {}),
       });
+      setNotice(editMember.password ? 'Usuário atualizado e senha definida com sucesso.' : 'Usuário atualizado com sucesso.');
       setEditMember(null);
+      if (ownPasswordChanged) { await refreshUser(); return; }
       await loadEquipe();
-    } catch (err: any) { setError(err.message || 'Não foi possível editar o usuário.'); }
+    } catch (err: any) { setError(err.message || 'Não foi possível editar o usuário.'); } finally { setSaving(false); }
   };
 
   const handleToggleStatus = async (member: any, e: React.MouseEvent) => {
@@ -125,14 +125,6 @@ export const EquipePage: React.FC = () => {
     } catch (err: any) { setRemoveMember(null); setError(err.message || 'Não foi possível remover o acesso.'); }
   };
 
-  const handleInvite = async (member: any, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const res = await api.post('/auth/forgot-password', { email: member.email });
-      if (res.resetTokenForSetup) setInviteInfo({ name: member.nome, email: member.email, token: res.resetTokenForSetup });
-    } catch (err: any) { setError(err.message || 'Não foi possível gerar o convite.'); }
-  };
-
   const resumo = data?.resumo || {
     quantidade_vendedores: 0,
     receita_total_equipe: 0,
@@ -142,7 +134,7 @@ export const EquipePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {error && <div role="alert" className="relative z-[60] rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">{error}</div>}
+      {error && !createModal && !editMember && <div role="alert" className="relative z-[60] rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">{error}</div>}
       <ConfirmModal open={Boolean(removeMember)} title="Remover acesso do usuário" confirmLabel="Remover acesso"
         description={`Remover o acesso de ${removeMember?.nome || ''}? As sessões serão encerradas e o histórico comercial será preservado.`}
         onConfirm={handleRemove} onCancel={() => setRemoveMember(null)} />
@@ -170,31 +162,10 @@ export const EquipePage: React.FC = () => {
         </button>
       </div>
 
-      {/* Notificação de Convite Seguro para Criação de Senha */}
-      {inviteInfo && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>
-                Integrante {inviteInfo.name} ({inviteInfo.email}) cadastrado com convite seguro!
-              </span>
-            </div>
-            <p className="text-xs text-emerald-700">
-              Compartilhe este link de uso único somente com o integrante para definir a senha:
-              <input aria-label="Link de definição de senha" readOnly value={invitationUrl(inviteInfo.token)}
-                onFocus={(e) => e.target.select()} className="mt-2 w-full rounded border border-emerald-300 p-2 text-xs text-[#111111]" />
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setInviteInfo(null)}
-            className="text-xs font-bold text-emerald-800 hover:underline"
-          >
-            Fechar aviso
-          </button>
-        </div>
-      )}
+      {notice && <div role="status" className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-sm text-emerald-800 flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{notice}</span>
+        <button type="button" aria-label="Fechar aviso" onClick={() => setNotice('')}><X className="w-4 h-4" /></button>
+      </div>}
 
       {/* 4 Indicadores Globais da Equipe */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -282,7 +253,7 @@ export const EquipePage: React.FC = () => {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setEditMember(member);
+                      setError(''); setEditMember({ ...member, password: '' });
                     }}
                     className="p-1.5 rounded-lg text-zinc-400 hover:text-[#111111] hover:bg-zinc-100"
                     title="Editar Integrante"
@@ -301,7 +272,7 @@ export const EquipePage: React.FC = () => {
                   >
                     <Power className="w-3.5 h-3.5" />
                   </button>
-                  {member.active && <button type="button" onClick={(e) => handleInvite(member, e)} title="Gerar convite de senha"
+                  {member.active && <button type="button" onClick={(e) => { e.stopPropagation(); setError(''); setEditMember({ ...member, password: '' }); }} title="Definir senha"
                     className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100"><KeyRound className="w-3.5 h-3.5" /></button>}
                 </div>
               </div>
@@ -441,10 +412,10 @@ export const EquipePage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Cadastrar Vendedor com Convite Seguro */}
+      {/* Modal: Cadastrar usuário com senha de acesso */}
       {createModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl border border-zinc-200 max-w-md w-full p-6 shadow-xl">
+          <div role="dialog" aria-modal="true" aria-label="Cadastrar usuário" className="bg-white rounded-2xl border border-zinc-200 max-w-md w-full p-6 shadow-xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <div className="flex items-center gap-2">
                 <KeyRound className="w-4 h-4 text-[#FF5A00]" />
@@ -452,31 +423,35 @@ export const EquipePage: React.FC = () => {
                   Cadastrar Integrante Comercial
                 </h3>
               </div>
-              <button type="button" onClick={() => setCreateModal(false)}>
+              <button type="button" onClick={() => { setCreateModal(false); setForm((prev) => ({ ...prev, password: '' })); }}>
                 <X className="w-5 h-5 text-zinc-400" />
               </button>
             </div>
             <form onSubmit={handleCreateVendedor} className="mt-4 space-y-3.5">
+              {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
               <div>
-                <label className="block text-xs font-semibold mb-1">Nome Completo *</label>
+                <label htmlFor="create-user-name" className="block text-xs font-semibold mb-1">Nome Completo *</label>
                 <input
                   type="text"
                   required
+                  id="create-user-name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-300"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1">E-mail Corporativo *</label>
+                <label htmlFor="create-user-email" className="block text-xs font-semibold mb-1">E-mail Corporativo *</label>
                 <input
                   type="email"
                   required
+                  id="create-user-email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-300"
                 />
               </div>
+              <UserPasswordField id="create-user-password" required value={form.password} onChange={(password) => setForm({ ...form, password })} />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold mb-1">Cargo Comercial *</label>
@@ -518,16 +493,17 @@ export const EquipePage: React.FC = () => {
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setCreateModal(false)}
+                  onClick={() => { setCreateModal(false); setForm((prev) => ({ ...prev, password: '' })); }}
                   className="px-4 py-2 text-xs font-semibold bg-[#F5F5F5] rounded-xl"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
+                  disabled={saving}
                   className="px-4 py-2 text-xs font-semibold text-white bg-[#FF5A00] hover:bg-[#E04F00] rounded-xl"
                 >
-                  Cadastrar e Gerar Convite
+                  {saving ? 'Cadastrando…' : 'Cadastrar Usuário'}
                 </button>
               </div>
             </form>
@@ -538,7 +514,7 @@ export const EquipePage: React.FC = () => {
       {/* Modal: Editar Integrante */}
       {editMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl border border-zinc-200 max-w-md w-full p-6 shadow-xl">
+          <div role="dialog" aria-modal="true" aria-label="Editar usuário" className="bg-white rounded-2xl border border-zinc-200 max-w-md w-full p-6 shadow-xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <h3 className="text-base font-bold text-[#111111]">Editar Integrante</h3>
               <button type="button" onClick={() => setEditMember(null)}>
@@ -546,6 +522,8 @@ export const EquipePage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handleUpdateVendedor} className="mt-4 space-y-3.5">
+              {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+              <UserPasswordField id="edit-user-password" value={editMember.password || ''} onChange={(password) => setEditMember({ ...editMember, password })} />
               <div>
                 <label htmlFor="edit-email" className="block text-xs font-semibold mb-1">E-mail</label>
                 <input id="edit-email" type="email" required value={editMember.email}
@@ -590,9 +568,10 @@ export const EquipePage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
+                  disabled={saving}
                   className="px-4 py-2 text-xs font-semibold text-white bg-[#FF5A00] hover:bg-[#E04F00] rounded-xl"
                 >
-                  Salvar Alterações
+                  {saving ? 'Salvando…' : 'Salvar Alterações'}
                 </button>
               </div>
             </form>

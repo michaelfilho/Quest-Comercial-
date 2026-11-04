@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { db } from '../config/database.js';
-import { generateSecureToken, hashTokenSha256 } from '../config/security.js';
+import { hashPassword } from '../config/security.js';
 import { AuthenticatedUser, recordAuditLog } from '../middlewares/auth.middleware.js';
 import { AppError } from '../middlewares/error.middleware.js';
 
@@ -1135,22 +1135,14 @@ export const gestaoService = {
     }
 
     const newUserId = crypto.randomUUID();
-    const rawInviteToken = generateSecureToken(24);
-    const tokenHash = hashTokenSha256(rawInviteToken);
-    const expiresAt = new Date(Date.now() + 72 * 3600 * 1000); // 72h para aceite do convite
+    const passwordHash = await hashPassword(data.password);
 
     await db.withTransaction(async (tx) => {
-      // Sem senha inicial previsível (Seção 10: "Não utilizar senhas iniciais previsíveis como quest26XX")
+      // A senha definida pelo gestor é persistida apenas como hash Argon2id.
       await tx.query(
         `INSERT INTO users (id, name, email, password_hash, role, cargo, active, created_at, updated_at)
-         VALUES ($1, $2, $3, NULL, $4::"UserRole", $5, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [newUserId, data.name, data.email, data.role || 'VENDEDOR', data.cargo]
-      );
-
-      await tx.query(
-        `INSERT INTO password_reset_tokens (id, user_id, token_hash, purpose, expires_at, created_at)
-         VALUES ($1, $2, $3, 'ACCOUNT_ACTIVATION', $4, CURRENT_TIMESTAMP)`,
-        [crypto.randomUUID(), newUserId, tokenHash, expiresAt.toISOString()]
+         VALUES ($1, $2, $3, $4, $5::"UserRole", $6, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [newUserId, data.name, data.email, passwordHash, data.role || 'VENDEDOR', data.cargo]
       );
 
       if (data.meta_mensal_opcional && Number(data.meta_mensal_opcional) > 0) {
@@ -1180,7 +1172,7 @@ export const gestaoService = {
       acao: 'VENDEDOR_CADASTRADO',
       entidade: 'users',
       entidadeId: newUserId,
-      detalhes: `Integrante ${data.name} (${data.email}) cadastrado com convite de criação de senha.`,
+      detalhes: `Integrante ${data.name} (${data.email}) cadastrado com senha definida pela gestão.`,
       ipAddress,
     });
 
@@ -1191,11 +1183,6 @@ export const gestaoService = {
 
     return {
       usuario: createdUser,
-      convite: {
-        purpose: 'ACCOUNT_ACTIVATION',
-        expires_at: expiresAt.toISOString(),
-        invite_token: rawInviteToken,
-      },
     };
   },
 
@@ -1216,22 +1203,31 @@ export const gestaoService = {
       const duplicate = await db.queryOne('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id <> $2', [data.email, targetId]);
       if (duplicate) throw new AppError('Já existe um usuário com este e-mail.', 409, 'EMAIL_ALREADY_EXISTS');
     }
-    await db.query(
+    const passwordHash = data.password !== undefined ? await hashPassword(data.password) : null;
+    await db.withTransaction(async (tx) => {
+      await tx.query(
       `UPDATE users
        SET name = COALESCE($1, name),
            email = COALESCE($2, email),
            cargo = COALESCE($3, cargo),
            role = COALESCE($4::"UserRole", role),
+           password_hash = COALESCE($5, password_hash),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5`,
-      [data.name ?? null, data.email ?? null, data.cargo ?? null, data.role ?? null, targetId]
-    );
+       WHERE id = $6`,
+        [data.name ?? null, data.email ?? null, data.cargo ?? null, data.role ?? null, passwordHash, targetId]
+      );
+      if (passwordHash) {
+        await tx.query('UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL', [targetId]);
+        await tx.query('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND used_at IS NULL', [targetId]);
+      }
+    });
 
     await recordAuditLog({
       usuarioId: user.id,
       acao: 'VENDEDOR_ATUALIZADO',
       entidade: 'users',
       entidadeId: targetId,
+      detalhes: passwordHash ? 'Senha redefinida pela gestão; sessões e convites anteriores revogados.' : null,
       ipAddress,
     });
 

@@ -40,7 +40,7 @@ const PAGE_METADATA: Record<string, { title: string; context: string }> = {
   },
   '/equipe': {
     title: 'Gestão de Equipe',
-    context: 'Desempenho individual, metas, convites e administração de contas (Exclusivo Gestores)',
+    context: 'Desempenho individual, metas, senhas e administração de contas (Exclusivo Gestores)',
   },
   '/rituais': {
     title: 'Rotinas e Rituais',
