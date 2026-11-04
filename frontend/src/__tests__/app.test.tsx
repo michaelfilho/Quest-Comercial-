@@ -73,10 +73,10 @@ describe('Playbook de Vendas Quest — Testes Unitários e de Interface (Fronten
     expect(screen.queryByText(/André Maciel/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/1º Acesso/i)).not.toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
-    expect(screen.getByText('Acessar Plataforma')).toBeInTheDocument();
+    expect(screen.getByText('Bem-vindo de volta')).toBeInTheDocument();
     expect(screen.getByLabelText('E-mail')).toBeInTheDocument();
     expect(screen.getByLabelText('Senha')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entrar na plataforma' })).toBeInTheDocument();
 
     // Testa alternância mostrar/ocultar senha
     const passwordInput = screen.getByLabelText('Senha') as HTMLInputElement;

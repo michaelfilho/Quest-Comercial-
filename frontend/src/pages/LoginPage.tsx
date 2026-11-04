@@ -3,11 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, KeyRound, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
-import { QuestLogo } from '../components/ui/QuestLogo';
+import { LoginShowcase } from '../components/login/LoginShowcase';
+import { getTimeGreeting } from '../lib/greeting';
+import './login.css';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [greeting, setGreeting] = useState(getTimeGreeting);
+
+  React.useEffect(() => {
+    const refreshGreeting = () => setGreeting(getTimeGreeting());
+    const timer = window.setInterval(refreshGreeting, 60_000);
+    document.addEventListener('visibilitychange', refreshGreeting);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refreshGreeting); };
+  }, []);
 
   const [mode, setMode] = useState<'login' | 'forgot' | 'reset'>('login');
   const [email, setEmail] = useState('');
@@ -68,46 +78,22 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#111111] flex flex-col lg:flex-row">
-      {/* Painel Institucional Esquerdo — Identidade QUEST 2026 */}
-      <div className="lg:w-5/12 p-8 sm:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-white/10 bg-gradient-to-br from-[#111111] via-[#18181B] to-[#111111] text-white">
-        <div>
-          <QuestLogo light />
-          <div className="mt-10 space-y-4">
-            <span className="inline-block text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-[#FF5A00]/20 text-[#FF5A00]">
-              Quest Comunicação Total • 2026
-            </span>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-              Quest Seller
-            </h1>
-            <p className="text-sm text-zinc-400 leading-relaxed">
-              Plataforma corporativa integrada de CRM, Pipeline em 5 etapas, Gestão de Metas,
-              KPIs do Funil Inbound + Consultoria, Rotinas e Rituais.
-            </p>
-          </div>
-
-
-        </div>
-
-        <p className="mt-8 text-xs text-zinc-500">
-          © 2026 Quest Comunicação Total. Autenticação Argon2id & Sessões HttpOnly.
-        </p>
-      </div>
-
-      {/* Painel de Autenticação Direito */}
-      <div className="flex-1 bg-[#F5F5F5] flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md bg-white rounded-2xl border border-zinc-200/80 shadow-card p-8">
+    <div className="seller-login">
+      <LoginShowcase />
+      <div className="seller-login-auth">
+        <div className="seller-login-card">
           {mode === 'login' && (
             <>
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-[#111111]">Acessar Plataforma</h2>
-                <p className="text-sm text-[#333333] mt-1">
-                  Entre com seu e-mail corporativo e senha da Quest.
+              <div className="seller-login-header">
+                <p className="seller-login-greeting" aria-live="polite">{greeting}!</p>
+                <h2 className="seller-login-welcome">Bem-vindo de volta</h2>
+                <p className="seller-login-subtitle">
+                  Acesse sua conta Quest Seller.
                 </p>
               </div>
 
               {error && (
-                <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-700">
+                <div role="alert" className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-700">
                   {error}
                 </div>
               )}
@@ -119,7 +105,7 @@ export const LoginPage: React.FC = () => {
                 </div>
               )}
 
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleLogin} className="seller-login-form">
                 <div>
                   <label
                     htmlFor="login-email"
@@ -128,21 +114,22 @@ export const LoginPage: React.FC = () => {
                     E-mail
                   </label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Mail className="seller-login-input-icon absolute top-1/2 -translate-y-1/2" />
                     <input
                       id="login-email"
                       type="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="nome@questcomunicacao.com.br"
+                      placeholder="seu.email@empresa.com"
+                      autoComplete="username"
                       className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-zinc-300 focus:outline-none focus:border-[#FF5A00]"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="seller-login-password-heading">
                     <label
                       htmlFor="login-password"
                       className="block text-xs font-semibold text-[#111111]"
@@ -155,15 +142,16 @@ export const LoginPage: React.FC = () => {
                         setError(null);
                         setMode('forgot');
                       }}
-                      className="text-xs font-semibold text-[#FF5A00] hover:underline"
+                      className="seller-login-forgot"
                     >
-                      Esqueci minha senha
+                      Esqueceu sua senha?
                     </button>
                   </div>
                   <div className="relative">
-                    <Lock className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Lock className="seller-login-input-icon absolute top-1/2 -translate-y-1/2" />
                     <input
                       id="login-password"
+                      autoComplete="current-password"
                       type={showPassword ? 'text' : 'password'}
                       required
                       value={password}
@@ -175,7 +163,7 @@ export const LoginPage: React.FC = () => {
                       type="button"
                       aria-label="Mostrar ou ocultar senha"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700"
+                      className="seller-login-eye absolute top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -185,11 +173,12 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 px-4 rounded-xl bg-[#FF5A00] hover:bg-[#E04F00] text-white font-semibold text-sm shadow-sm transition-colors disabled:opacity-50"
+                  className="seller-login-submit"
                 >
-                  {loading ? 'Autenticando...' : 'Entrar'}
+                  {loading ? 'Autenticando...' : 'Entrar na plataforma'}
                 </button>
               </form>
+              <p className="seller-login-secure"><Lock aria-hidden="true" />Acesso seguro e protegido</p>
             </>
           )}
 
@@ -217,7 +206,7 @@ export const LoginPage: React.FC = () => {
               </div>
 
               {error && (
-                <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-700">
+                <div role="alert" className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-700">
                   {error}
                 </div>
               )}
@@ -251,7 +240,7 @@ export const LoginPage: React.FC = () => {
               </div>
 
               {error && (
-                <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-700">
+                <div role="alert" className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-700">
                   {error}
                 </div>
               )}
